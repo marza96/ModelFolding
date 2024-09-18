@@ -101,18 +101,6 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     model.eval()
     flop, param = profile(model, inputs=(input,))
 
-    if eval is True:
-        for module in model.modules():
-            if isinstance(module, torch.nn.BatchNorm2d):
-                module.reset_running_stats()
-                module.momentum = None
-
-        model.train()
-        for x, _ in tqdm(train_loader):
-            model(x.to("cuda"))
-            
-        model.eval()
-
     # if eval is True:
     #     for module in model.modules():
     #         if isinstance(module, torch.nn.BatchNorm2d):
@@ -120,8 +108,20 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     #             module.momentum = None
 
     #     model.train()
-    #     model(torch.load("input_tens.pt").to("cuda"))
+    #     for x, _ in tqdm(train_loader):
+    #         model(x.to("cuda"))
+            
     #     model.eval()
+
+    if eval is True:
+        for module in model.modules():
+            if isinstance(module, torch.nn.BatchNorm2d):
+                module.reset_running_stats()
+                module.momentum = None
+
+        model.train()
+        model(torch.load("cifar100.pt").to("cuda"))
+        model.eval()
 
     if eval is True:
         correct = 0

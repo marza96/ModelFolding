@@ -1,11 +1,10 @@
-from model.resnet import ResNet18, merge_channel_ResNet18_clustering_approx_repair
-
+from model.resnet import ResNet18, merge_channel_ResNet18, merge_channel_ResNet18_clustering
+from model.resnet import ResNet50, merge_channel_ResNet50_clustering_approx_repair
 import wandb
 import argparse
 import torch
 import os
 import copy
-import matplotlib.pyplot as plt
 from torchvision import datasets, transforms
 
 from tqdm import tqdm
@@ -64,8 +63,8 @@ class ConvBnormFuse(torch.nn.Module):
         return self.fused(x)
 
 
-def fuse_bnorms(block):
-    for i in range(2):
+def fuse_bnorms(block, block_len):
+    for i in range(block_len):
         alpha = block[i].bn1.weight.data.clone().detach()
         beta = block[i].bn1.bias.data.clone().detach()
         block[i].bn1.weight.data = torch.ones_like(block[i].bn1.weight.data)
@@ -79,6 +78,7 @@ def fuse_bnorms(block):
         block[i].bn1.bias.data = beta
         block[i].bn1.running_mean.data = torch.zeros_like(block[i].bn1.running_mean.data)
         block[i].bn1.running_var.data = torch.ones_like(block[i].bn1.running_var.data)
+
 
         alpha = block[i].bn2.weight.data.clone().detach()
         beta = block[i].bn2.bias.data.clone().detach()
@@ -94,6 +94,21 @@ def fuse_bnorms(block):
         block[i].bn2.running_mean.data = torch.zeros_like(block[i].bn2.running_mean.data)
         block[i].bn2.running_var.data = torch.ones_like(block[i].bn2.running_var.data)
 
+
+        alpha = block[i].bn3.weight.data.clone().detach()
+        beta = block[i].bn3.bias.data.clone().detach()
+        block[i].bn3.weight.data = torch.ones_like(block[i].bn3.weight.data)
+        block[i].bn3.bias.data = torch.zeros_like(block[i].bn3.bias.data)
+
+        block[i].conv3 = ConvBnormFuse(
+            block[i].conv3,
+            block[i].bn3
+        ).fused
+        block[i].bn3.weight.data = alpha
+        block[i].bn3.bias.data = beta
+        block[i].bn3.running_mean.data = torch.zeros_like(block[i].bn3.running_mean.data)
+        block[i].bn3.running_var.data = torch.ones_like(block[i].bn3.running_var.data)
+
         if len(block[i].shortcut) == 2:
             alpha = block[i].shortcut[1].weight.data.clone().detach()
             beta = block[i].shortcut[1].bias.data.clone().detach()
@@ -108,101 +123,19 @@ def fuse_bnorms(block):
             block[i].shortcut[1].running_mean.data = torch.zeros_like(block[i].shortcut[1].running_mean.data)
             block[i].shortcut[1].running_var.data = torch.ones_like(block[i].shortcut[1].running_var.data)
 
-class AvgLayerStatisticsHook:
-    def __init__(self, conv=False):
-        self.conv = conv
-        self.bnorm = None
-
-    def __call__(self, module, input, output):
-        if self.bnorm is None:
-            if self.conv is True:
-                self.bnorm = torch.nn.BatchNorm2d(output.shape[1]).to("cuda")
-            else:
-                self.bnorm = torch.nn.BatchNorm1d(output.shape[1]).to("cuda")
-
-            self.bnorm.train()
-            self.bnorm.momentum = None
-        
-        self.bnorm(output)
-
-    def get_stats(self):
-        return self.bnorm.running_var.mean()
-
-
-def measure_avg_var(model, dataloader):
-    hooks = {
-        "bn1": AvgLayerStatisticsHook(conv=True),
-        "relu_conv": AvgLayerStatisticsHook(conv=True),
-        "layer1.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer1.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer2.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer2.0.relu2": AvgLayerStatisticsHook(conv=True),
-        "layer2.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer3.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer3.0.relu2": AvgLayerStatisticsHook(conv=True),
-        "layer3.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer4.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer4.0.relu2": AvgLayerStatisticsHook(conv=True),
-        "layer4.1.relu1": AvgLayerStatisticsHook(conv=True)
-    }
-
-    handles = list()
-    handles.append(model.bn1.register_forward_hook(hooks["bn1"]))
-    handles.append(model.conv1.register_forward_hook(hooks["relu_conv"]))
-    handles.append(model.layer1[0].conv1.register_forward_hook(hooks["layer1.0.relu1"]))
-    handles.append(model.layer1[1].conv1.register_forward_hook(hooks["layer1.1.relu1"]))
-    handles.append(model.layer2[0].conv1.register_forward_hook(hooks["layer2.0.relu1"]))
-    handles.append(model.layer2[0].conv2.register_forward_hook(hooks["layer2.0.relu2"]))
-    handles.append(model.layer2[1].conv1.register_forward_hook(hooks["layer2.1.relu1"]))
-    handles.append(model.layer3[0].conv1.register_forward_hook(hooks["layer3.0.relu1"]))
-    handles.append(model.layer3[0].conv2.register_forward_hook(hooks["layer3.0.relu2"]))
-    handles.append(model.layer3[1].conv1.register_forward_hook(hooks["layer3.1.relu1"]))
-    handles.append(model.layer4[0].conv1.register_forward_hook(hooks["layer4.0.relu1"]))
-    handles.append(model.layer4[0].conv2.register_forward_hook(hooks["layer4.0.relu2"]))
-    handles.append(model.layer4[1].conv1.register_forward_hook(hooks["layer4.1.relu1"]))
-
-    model.cuda()
-    model.eval()
-
-    with torch.no_grad():
-        for i, (X, y) in tqdm(enumerate(tqdm(dataloader)), desc="Eval initial stats"):
-            X = X.cuda()
-            y = y.cuda()
-            _ = model(X)
-
-    avg_vars = list()
-    for key in hooks.keys():
-        print("KKK", key)
-        avg_vars.append(hooks[key].get_stats())
-
-    for handle in handles:
-        handle.remove()
-
-    return avg_vars
-
 
 def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, threshold, figure_path, method, eval=True):
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
     origin_model.eval()
-
-    # origin_var = measure_avg_var(origin_model, dataloader)
-    # print(origin_var)
-
     origin_flop, origin_param = profile(origin_model, inputs=(input,))
     
     hooks = None
-
-    model = method(copy.deepcopy(origin_model), checkpoint, max_ratio=max_ratio, threshold=threshold, hooks=hooks)
+    model = method(copy.deepcopy(origin_model), checkpoint, max_ratio=max_ratio, threshold=threshold)
+    
     model.cuda()
     model.eval()
     flop, param = profile(model, inputs=(input,))
-    
-    # var = measure_avg_var(model, dataloader)
-    # ratios = list()
-    # for i in range(len(var)):
-    #     ratios.append(float((var[i] / origin_var[i])))
-    # print(ratios)
 
     if eval is True:
         correct = 0
@@ -249,15 +182,15 @@ def load_model(model, i):
 def get_datasets(train=True, bs=512): #8
     path   = os.path.dirname(os.path.abspath(__file__))
     
-    normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2470, 0.2435, 0.2616])
+    normalize = transforms.Normalize(mean=[0.5071, 0.4865, 0.4409], std=[0.2673, 0.2564, 0.2762])
     transform_train = transforms.Compose([transforms.RandomCrop(32, padding=4),transforms.RandomHorizontalFlip(), transforms.RandomRotation(15), transforms.ToTensor(), normalize])
     transform_test = transforms.Compose([transforms.ToTensor(), normalize])
-        
+
     transform = transform_train
     if train is False:
         transform = transform_test
 
-    mnistTrainSet = torchvision.datasets.CIFAR10(
+    mnistTrainSet = torchvision.datasets.CIFAR100(
         root=path + '/data', 
         train=train,
         download=True, 
@@ -266,7 +199,7 @@ def get_datasets(train=True, bs=512): #8
 
     loader = torch.utils.data.DataLoader(
         mnistTrainSet,
-        batch_size=bs, 
+        batch_size=bs, #256
         shuffle=True,
         num_workers=8)
     
@@ -274,15 +207,33 @@ def get_datasets(train=True, bs=512): #8
 
 
 def main():
-    proj_name = "WM-approx-repair"
+    proj_name = "IFM-vs-Weight-Clustering-Resnet18-REPAIR"
     
-    model = ResNet18()
-    load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt")
+    model = ResNet50(num_classes=100)
+    load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet50_1Xwider_CIFAR100.pt")
+
     model.cuda()
 
     test_loader = get_datasets(train=False)
     train_loader = get_datasets(train=True)
+    max_ratio=0.42#0.35
+    threshold=100.40
+    figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
 
+    # correct = 0
+    # total_num = 0
+    # total_loss = 0
+    # with torch.no_grad():
+    #     for i, (X, y) in enumerate(tqdm(test_loader)):
+    #         X = X.cuda()
+    #         y = y.cuda()
+    #         logit = model(X)
+    #         loss = F.cross_entropy(logit, y)
+    #         correct += (logit.max(1)[1] == y).sum().item()
+    #         total_num += y.size(0)
+    #         total_loss += loss.item()
+    # print(f"model before adapt: acc:{correct/total_num * 100:.2f}%, avg loss:{total_loss / (i+1):.4f}")
+    
     alpha = model.bn1.weight.data.clone().detach()
     beta = model.bn1.bias.data.clone().detach()
     model.bn1.weight.data = torch.ones_like(model.bn1.weight.data)
@@ -296,33 +247,42 @@ def main():
     model.bn1.bias.data = beta
     model.bn1.running_mean.data = torch.zeros_like(model.bn1.running_mean.data)
     model.bn1.running_var.data = torch.ones_like(model.bn1.running_var.data)
-    fuse_bnorms(model.layer1)
-    fuse_bnorms(model.layer2)
-    fuse_bnorms(model.layer3)
-    fuse_bnorms(model.layer4)
+    fuse_bnorms(model.layer1, 3)
+    fuse_bnorms(model.layer2, 4)
+    fuse_bnorms(model.layer3, 6)
+    fuse_bnorms(model.layer4, 3)
+    
+    total_params = sum(p.numel() for p in model.parameters())
+    new_model, _, _ = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, 0.5, threshold, figure_path, merge_channel_ResNet50_clustering_approx_repair, eval=True)
+    new_total_params = sum(p.numel() for p in new_model.parameters())
+    print("ACT SP", new_total_params / total_params)
+    
 
-    threshold=100.40
-    figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
+    # exp_name = "Weight-Clustering Approx REPAIR"
+    # desc = {"experiment": exp_name}
+    # wandb.init(
+    #     project=proj_name,
+    #     config=desc,
+    #     name=exp_name
+    # )
+    # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
+    #     new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
+    #     wandb.log({"test acc": acc})
+    #     wandb.log({"sparsity": sparsity})
 
-    # total_params = sum(p.numel() for p in model.parameters())
-    # new_model, _, _ = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, 0.55, threshold, figure_path, merge_channel_ResNet18_clustering_approx_repair, eval=True)
-    # new_total_params = sum(p.numel() for p in new_model.parameters())
-    # print("ACT SP", new_total_params / total_params)
-
-    # return 
-
-    exp_name = "Weight-Clustering APPROXIMATE REPAIR"
-    desc = {"experiment": exp_name}
-    wandb.init(
-        project=proj_name,
-        config=desc,
-        name=exp_name
-    )
-    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering_approx_repair, eval=True)
-        wandb.log({"test acc": acc})
-        wandb.log({"sparsity": 1.0 - sparsity})
-
+    # exp_name = "IFM"
+    # desc = {"experiment": exp_name}
+    # wandb.init(
+    #     project=proj_name,
+    #     config=desc,
+    #     name=exp_name,
+    #     reinit=True
+    # )
+    # # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
+    # for ratio in [0.05, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55]:
+    #     new_model, acc, sparsity  = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18)
+    #     wandb.log({"test acc": acc})
+    #     wandb.log({"sparsity": sparsity})
 
 if __name__ == "__main__":
   main()

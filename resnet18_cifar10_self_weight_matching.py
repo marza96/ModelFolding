@@ -1,4 +1,4 @@
-from model.resnet import ResNet18, merge_channel_ResNet18, merge_channel_ResNet18_clustering
+from model.resnet import ResNet18, merge_channel_ResNet18_clustering
 
 import wandb
 import argparse
@@ -93,6 +93,16 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     model.cuda()
     model.eval()
     flop, param = profile(model, inputs=(input,))
+
+    if eval is True:
+        for module in model.modules():
+            if isinstance(module, torch.nn.BatchNorm2d):
+                module.reset_running_stats()
+                module.momentum = None
+
+        model.train()
+        model(torch.load("cifar10.pt").to("cuda"))
+        model.eval()
     
     var = measure_avg_var(model, dataloader)
     
@@ -103,17 +113,17 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     print(ratios)
 
     est_stat = model.state_dict()["layer3.1.bn1.running_var"].detach().cpu().numpy()
-    if eval is True:
-        for module in model.modules():
-            if isinstance(module, torch.nn.BatchNorm2d):
-                module.reset_running_stats()
-                module.momentum = None
+    # if eval is True:
+    #     for module in model.modules():
+    #         if isinstance(module, torch.nn.BatchNorm2d):
+    #             module.reset_running_stats()
+    #             module.momentum = None
 
-        model.train()
-        for x, _ in tqdm(train_loader):
-            model(x.to("cuda"))
+    #     model.train()
+    #     for x, _ in tqdm(train_loader):
+    #         model(x.to("cuda"))
             
-        model.eval()
+    #     model.eval()
 
 
     # true_stat = model.state_dict()["layer3.1.bn1.running_var"].detach().cpu().numpy()
@@ -136,16 +146,6 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     # np.save("stat_est_prof.npy", est_stat)
     # np.save("stat_est_repair.npy", true_stat)
     
-
-    # if eval is True:
-    #     for module in model.modules():
-    #         if isinstance(module, torch.nn.BatchNorm2d):
-    #             module.reset_running_stats()
-    #             module.momentum = None
-
-    #     model.train()
-    #     model(torch.load("input_tens.pt").to("cuda"))
-    #     model.eval()
 
     if eval is True:
         correct = 0
@@ -328,7 +328,7 @@ def main():
     proj_name = "WM-approx-repair"
     
     model = ResNet18()
-    load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pth")
+    load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt")
     model.cuda()
 
     # model.conv1 = ConvBnormFuse(
@@ -352,17 +352,17 @@ def main():
     new_total_params = sum(p.numel() for p in new_model.parameters())
     print("ACT SP", new_total_params / total_params)
 
-    # exp_name = "Weight-Clustering APPROXIMATE REPAIR"
-    # desc = {"experiment": exp_name}
-    # wandb.init(
-    #     project=proj_name,
-    #     config=desc,
-    #     name=exp_name
-    # )
-    # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-    #     new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
-    #     wandb.log({"test acc": acc})
-    #     wandb.log({"sparsity": 1.0 - sparsity})
+    exp_name = "Weight-Clustering DI REPAIR"
+    desc = {"experiment": exp_name}
+    wandb.init(
+        project=proj_name,
+        config=desc,
+        name=exp_name
+    )
+    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
+        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
+        wandb.log({"test acc": acc})
+        wandb.log({"sparsity": 1.0 - sparsity})
 
     # exp_name = "IFM"
     # desc = {"experiment": exp_name}

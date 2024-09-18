@@ -1,4 +1,3 @@
-#from model.resnet_torch_flexi_new_mid import ResNet50, merge_channel_ResNet50
 from model.vgg import merge_channel_vgg16, get_axis_to_perm
 import argparse
 import torch
@@ -13,6 +12,26 @@ from torchvision.utils import save_image
 from torchvision.transforms.functional import normalize, resize, to_pil_image
 from torchvision.models.vgg import VGG, make_layers
 import torchvision
+
+
+def fuse_bnorms(model):
+    for i in range(len(model.features)):
+        if isinstance(model.features[i], torch.nn.Conv2d):
+            print(type(model.features[i]), model.features[i + 1])
+
+            alpha = block[i].bn1.weight.data.clone().detach()
+            beta = block[i].bn1.bias.data.clone().detach()
+            block[i].bn1.weight.data = torch.ones_like(block[i].bn1.weight.data)
+            block[i].bn1.bias.data = torch.zeros_like(block[i].bn1.bias.data)
+
+            block[i].conv1 = ConvBnormFuse(
+                block[i].conv1,
+                block[i].bn1
+            ).fused
+            block[i].bn1.weight.data = alpha
+            block[i].bn1.bias.data = beta
+            block[i].bn1.running_mean.data = torch.zeros_like(block[i].bn1.running_mean.data)
+            block[i].bn1.running_var.data = torch.ones_like(block[i].bn1.running_var.data)
 
 
 def test_activation_cluster(origin_model, checkpoint, dataloader, train_loader, max_ratio, threshold, figure_path, vgg_name):
@@ -107,6 +126,9 @@ def main():
 
     model.load_state_dict(checkpoint)
     model.cuda()
+
+    fuse_bnorms(model)
+    return
 
     test_loader = get_datasets(train=False)
     train_loader = get_datasets(train=True)
