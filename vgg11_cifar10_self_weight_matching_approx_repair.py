@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torchvision.utils import save_image
 from torchvision.transforms.functional import normalize, resize, to_pil_image
 from torchvision.models.vgg import VGG, make_layers
+from utils.utils import ConvBnormFuse
 import torchvision
 
 
@@ -19,19 +20,19 @@ def fuse_bnorms(model):
         if isinstance(model.features[i], torch.nn.Conv2d):
             print(type(model.features[i]), model.features[i + 1])
 
-            alpha = block[i].bn1.weight.data.clone().detach()
-            beta = block[i].bn1.bias.data.clone().detach()
-            block[i].bn1.weight.data = torch.ones_like(block[i].bn1.weight.data)
-            block[i].bn1.bias.data = torch.zeros_like(block[i].bn1.bias.data)
+            alpha = model.features[i + 1].weight.data.clone().detach()
+            beta = model.features[i + 1].bias.data.clone().detach()
+            model.features[i + 1].weight.data = torch.ones_like(model.features[i + 1].weight.data)
+            model.features[i + 1].bias.data = torch.zeros_like(model.features[i + 1].bias.data)
 
-            block[i].conv1 = ConvBnormFuse(
-                block[i].conv1,
-                block[i].bn1
+            model.features[i] = ConvBnormFuse(
+                model.features[i],
+                model.features[i + 1]
             ).fused
-            block[i].bn1.weight.data = alpha
-            block[i].bn1.bias.data = beta
-            block[i].bn1.running_mean.data = torch.zeros_like(block[i].bn1.running_mean.data)
-            block[i].bn1.running_var.data = torch.ones_like(block[i].bn1.running_var.data)
+            model.features[i + 1].weight.data = alpha
+            model.features[i + 1].bias.data = beta
+            model.features[i + 1].running_mean.data = torch.zeros_like(model.features[i + 1].running_mean.data)
+            model.features[i + 1].running_var.data = torch.ones_like(model.features[i + 1].running_var.data)
 
 
 def test_activation_cluster(origin_model, checkpoint, dataloader, train_loader, max_ratio, threshold, figure_path, vgg_name):

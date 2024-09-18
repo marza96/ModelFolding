@@ -9,8 +9,52 @@ import copy
 from collections import defaultdict
 from matplotlib import cm
 from PIL import Image
-#import torch_dct
 import random
+
+
+class ConvBnormFuse(torch.nn.Module):
+    def __init__(self, conv, bnorm):
+        super().__init__()
+        self.fused = torch.nn.Conv2d(
+            conv.in_channels,
+            conv.out_channels,
+            kernel_size=conv.kernel_size,
+            stride=conv.stride,
+            padding=conv.padding,
+            bias=True
+        )
+        self.weight = self.fused.weight
+        self.bias = self.fused.bias
+
+        self._fuse(conv, bnorm)
+
+    def _fuse(self, conv, bn):
+        w_conv = conv.weight.clone().reshape(conv.out_channels, -1).detach() #view umjesto reshape
+        w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps+bn.running_var))).detach()
+
+        w_bn.requires_grad = False
+        w_conv.requires_grad = False
+        
+        ww = torch.mm(w_bn.detach(), w_conv.detach())
+        ww.requires_grad = False
+        self.fused.weight.data = ww.data.view(self.fused.weight.detach().size()).detach() 
+ 
+        if conv.bias is not None:
+            b_conv = conv.bias.detach()
+        else:
+            b_conv = torch.zeros( conv.weight.size(0), device=conv.weight.device )
+
+        bn.bias.requires_grad = False
+        bn.weight.requires_grad = False
+
+        b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+        
+        bb = ( torch.matmul(w_bn, b_conv) + b_bn ).detach()
+        self.fused.bias.data = bb.data
+
+    def forward(self, x):
+        return self.fused(x)
+
 
 def flatten_params(model):
   return model.state_dict()
