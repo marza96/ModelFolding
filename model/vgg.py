@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils.self_weight_matching import axes2perm_to_perm2axes, self_merge_weight, self_merge_weight_clustering
+from utils.self_weight_matching import axes2perm_to_perm2axes, self_merge_weight_clustering
 from functools import reduce
 
 
