@@ -131,34 +131,34 @@ class AvgLayerStatisticsHook:
 
 def measure_avg_var(model, dataloader):
     hooks = {
-        "bn1": AvgLayerStatisticsHook(conv=True),
-        "relu_conv": AvgLayerStatisticsHook(conv=True),
-        "layer1.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer1.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer2.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer2.0.relu2": AvgLayerStatisticsHook(conv=True),
-        "layer2.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer3.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer3.0.relu2": AvgLayerStatisticsHook(conv=True),
-        "layer3.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer4.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer4.0.relu2": AvgLayerStatisticsHook(conv=True),
+        # "bn1": AvgLayerStatisticsHook(conv=True),
+        # "relu_conv": AvgLayerStatisticsHook(conv=True),
+        # "layer1.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer1.1.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer2.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer2.0.relu2": AvgLayerStatisticsHook(conv=True),
+        # "layer2.1.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer3.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer3.0.relu2": AvgLayerStatisticsHook(conv=True),
+        # "layer3.1.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer4.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer4.0.relu2": AvgLayerStatisticsHook(conv=True),
         "layer4.1.relu1": AvgLayerStatisticsHook(conv=True)
     }
 
     handles = list()
-    handles.append(model.bn1.register_forward_hook(hooks["bn1"]))
-    handles.append(model.conv1.register_forward_hook(hooks["relu_conv"]))
-    handles.append(model.layer1[0].conv1.register_forward_hook(hooks["layer1.0.relu1"]))
-    handles.append(model.layer1[1].conv1.register_forward_hook(hooks["layer1.1.relu1"]))
-    handles.append(model.layer2[0].conv1.register_forward_hook(hooks["layer2.0.relu1"]))
-    handles.append(model.layer2[0].conv2.register_forward_hook(hooks["layer2.0.relu2"]))
-    handles.append(model.layer2[1].conv1.register_forward_hook(hooks["layer2.1.relu1"]))
-    handles.append(model.layer3[0].conv1.register_forward_hook(hooks["layer3.0.relu1"]))
-    handles.append(model.layer3[0].conv2.register_forward_hook(hooks["layer3.0.relu2"]))
-    handles.append(model.layer3[1].conv1.register_forward_hook(hooks["layer3.1.relu1"]))
-    handles.append(model.layer4[0].conv1.register_forward_hook(hooks["layer4.0.relu1"]))
-    handles.append(model.layer4[0].conv2.register_forward_hook(hooks["layer4.0.relu2"]))
+    # handles.append(model.bn1.register_forward_hook(hooks["bn1"]))
+    # handles.append(model.conv1.register_forward_hook(hooks["relu_conv"]))
+    # handles.append(model.layer1[0].conv1.register_forward_hook(hooks["layer1.0.relu1"]))
+    # handles.append(model.layer1[1].conv1.register_forward_hook(hooks["layer1.1.relu1"]))
+    # handles.append(model.layer2[0].conv1.register_forward_hook(hooks["layer2.0.relu1"]))
+    # handles.append(model.layer2[0].conv2.register_forward_hook(hooks["layer2.0.relu2"]))
+    # handles.append(model.layer2[1].conv1.register_forward_hook(hooks["layer2.1.relu1"]))
+    # handles.append(model.layer3[0].conv1.register_forward_hook(hooks["layer3.0.relu1"]))
+    # handles.append(model.layer3[0].conv2.register_forward_hook(hooks["layer3.0.relu2"]))
+    # handles.append(model.layer3[1].conv1.register_forward_hook(hooks["layer3.1.relu1"]))
+    # handles.append(model.layer4[0].conv1.register_forward_hook(hooks["layer4.0.relu1"]))
+    # handles.append(model.layer4[0].conv2.register_forward_hook(hooks["layer4.0.relu2"]))
     handles.append(model.layer4[1].conv1.register_forward_hook(hooks["layer4.1.relu1"]))
 
     model.cuda()
@@ -185,6 +185,8 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
     origin_model.eval()
+    origin_var = None
+    var = None
 
     # origin_var = measure_avg_var(origin_model, dataloader)
     # print(origin_var)
@@ -223,7 +225,10 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
         f"flop:{flop}/{origin_flop}, {flop / origin_flop * 100:.2f}%; param:{param}/{origin_param}, {param / origin_param * 100:.2f} %")
     
     if eval is True:
-        return model, correct/total_num, param / origin_param
+        if var is not None:
+            return model, correct/total_num, param / origin_param, float((var[-1] / origin_var[-1]))
+        
+        return model, correct/total_num, param / origin_param, -1
 
     return model
 
@@ -274,7 +279,8 @@ def get_datasets(train=True, bs=512): #8
 
 
 def main():
-    proj_name = "WM-approx-repair"
+    # proj_name = "WM-approx-repair"
+    proj_name = "resnet18 CIFAR10 WM 2 blocks"
     
     model = ResNet18()
     load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt")
@@ -318,11 +324,11 @@ def main():
         config=desc,
         name=exp_name
     )
-    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering_approx_repair, eval=True)
+    for ratio in [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
+        new_model, acc, sparsity, var_ratio = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering_approx_repair, eval=True)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": 1.0 - sparsity})
-
+        wandb.log({"var_ratio": var_ratio})
 
 if __name__ == "__main__":
   main()

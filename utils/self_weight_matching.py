@@ -290,9 +290,13 @@ class WeightClustering:
         km = AgglomerativeClustering(n_clusters=self.n_clusters)
 
         if self.use_kmeans is True:
-            km = HKMeans(n_clusters=self.n_clusters, random_state=None, n_init=60,
+            km = HKMeans(n_clusters=self.n_clusters, random_state=None, n_init=10,
                         n_jobs=-1, max_iter=10, verbose=True)
 
+        # km = SpectralClustering(
+        #     n_clusters=self.n_clusters,
+        #     assign_labels="cluster_qr"
+        # )
         X_scaled = weight.cpu().numpy()
 
         if self.normalize is True:
@@ -353,7 +357,7 @@ def self_merge_weight_clustering(perm_to_axes, params, max_ratio=0.5, threshold=
         else:
             distance = self_weight_matching_p_name_raw_vec(perm_to_axes, params, p_name, n)
         
-        merger = WeightClustering(int(distance.shape[0] * max_ratio), distance.shape[0], normalize=False)
+        merger = WeightClustering(int(distance.shape[0] * max_ratio), distance.shape[0], normalize=approx_repair)
         merge, inertia = merger(distance)
         merges[p_name] = merge
         inertias[p_name] = inertia

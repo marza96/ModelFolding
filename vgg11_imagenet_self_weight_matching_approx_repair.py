@@ -12,8 +12,13 @@ from torchvision.utils import save_image
 from torchvision.transforms.functional import normalize, resize, to_pil_image
 from torchvision.models.vgg import VGG, make_layers
 import wandb
-from utils.datasets import get_cifar10
 from utils.utils import ConvBnormFuse
+
+from utils.datasets import get_imagenet
+from PIL import ImageFile
+
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 def fuse_bnorms(model):
@@ -37,7 +42,7 @@ def fuse_bnorms(model):
 
 
 def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, threshold, method):
-    input = torch.torch.randn(1, 3, 32, 32).cuda()
+    input = torch.torch.randn(1, 3, 224, 224).cuda()
     origin_model.cuda()
     origin_model.eval()
 
@@ -64,21 +69,20 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     return correct / total_num, param / origin_param
 
 
-
 def main():
-    vgg11_cfg       = [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M']
-    features = make_layers(vgg11_cfg, batch_norm=True)
-    model = VGG(features=features, num_classes=10)
-    checkpoint = torch.load("/home/m/marza1/Iterative-Feature-Merging/vgg11_bn_1Xwider_CIFAR10.pt")
+    vgg11_cfg  = [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M']
+    features   = make_layers(vgg11_cfg, batch_norm=True)
+    model      = VGG(features=features, num_classes=1000)
+    checkpoint = torch.load("/home/m/marza1/Iterative-Feature-Merging/vgg11_imagenet.pt")
 
     model.load_state_dict(checkpoint)
     model.cuda()
 
     fuse_bnorms(model)
-    test_loader = get_cifar10(train=False)
-    train_loader = get_cifar10(train=True)
+    test_loader = get_imagenet("/home/m/marza1/imagenet/ImageNet/ILSVRC12", train=False, bs=64)
+    train_loader = get_imagenet("/home/m/marza1/imagenet/ImageNet/ILSVRC12", train=True, bs=64)
 
-    proj_name = "Folding VGG11 cifar10"
+    proj_name = "Folding VGG11 imagenet"
 
     exp_name = "WM APPROX REPAIR"
     desc = {"experiment": exp_name}
@@ -88,7 +92,7 @@ def main():
         name=exp_name,
         reinit=True
     )
-    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
+    for ratio in [0.025, 0.05, 0.1, 0.12, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
         acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, 100.0,  merge_channel_vgg11_clustering_approx_repair)
         print("ACC", acc)
         wandb.log({"test acc": acc})

@@ -84,8 +84,11 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     origin_model.cuda()
     origin_model.eval()
 
-    origin_var = measure_avg_var(origin_model, dataloader)
-    print(origin_var)
+    var = None
+    origin_var = None
+
+    # origin_var = measure_avg_var(origin_model, dataloader)
+    # print(origin_var)
 
     origin_flop, origin_param = profile(origin_model, inputs=(input,))
 
@@ -94,6 +97,17 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     model.eval()
     flop, param = profile(model, inputs=(input,))
 
+    # if eval is True:
+    #     for module in model.modules():
+    #         if isinstance(module, torch.nn.BatchNorm2d):
+    #             module.reset_running_stats()
+    #             module.momentum = None
+
+    #     model.train()
+    #     model(torch.load("cifar10.pt").to("cuda"))
+    #     model.eval()
+
+
     if eval is True:
         for module in model.modules():
             if isinstance(module, torch.nn.BatchNorm2d):
@@ -101,18 +115,19 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
                 module.momentum = None
 
         model.train()
-        model(torch.load("cifar10.pt").to("cuda"))
+        for x, _ in tqdm(train_loader):
+            model(x.to("cuda"))
+            
         model.eval()
     
-    var = measure_avg_var(model, dataloader)
+    # var = measure_avg_var(model, dataloader)
     
-    ratios = list()
-    for i in range(len(var)):
-        ratios.append(float((var[i] / origin_var[i])))
+    # ratios = list()
+    # for i in range(len(var)):
+    #     ratios.append(float((var[i] / origin_var[i])))
 
-    print(ratios)
+    # print(ratios)
 
-    est_stat = model.state_dict()["layer3.1.bn1.running_var"].detach().cpu().numpy()
     # if eval is True:
     #     for module in model.modules():
     #         if isinstance(module, torch.nn.BatchNorm2d):
@@ -124,28 +139,6 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     #         model(x.to("cuda"))
             
     #     model.eval()
-
-
-    # true_stat = model.state_dict()["layer3.1.bn1.running_var"].detach().cpu().numpy()
-    # plt.figure()
-    # plt.plot(true_stat)
-    # plt.plot(est_stat)
-    # plt.legend(["true stat", "est_stat"])
-    # plt.savefig("stat_dbg")
-
-    # plt.figure()
-    # plt.plot(true_stat - est_stat)
-    # plt.savefig("stat_dbg_ratio")
-
-    # plt.figure()
-    # plt.plot(true_stat)
-    # plt.plot(est_stat * 0.7 - 0.001)
-    # plt.legend(["true stat", "est_stat"])
-    # plt.savefig("stat_dbg_aligned")
-
-    # np.save("stat_est_prof.npy", est_stat)
-    # np.save("stat_est_repair.npy", true_stat)
-    
 
     if eval is True:
         correct = 0
@@ -164,13 +157,12 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
 
     print(
         f"flop:{flop}/{origin_flop}, {flop / origin_flop * 100:.2f}%; param:{param}/{origin_param}, {param / origin_param * 100:.2f} %")
-    # with open(os.path.join(figure_path, "self_merge_result.txt"), 'a+') as f:
-    #     f.write(f"max_ratio:{max_ratio}, threshold:{threshold}\n")
-    #     f.write(f"model after adapt: acc:{correct/total_num * 100:.2f}%, avg loss:{total_loss / (i+1):.4f}\n")
-    #     f.write(f"flop:{flop}/{origin_flop}, {flop / origin_flop * 100:.2f}%; param:{param}/{origin_param}, {param / origin_param * 100:.2f} %\n\n")
     
     if eval is True:
-        return model, correct/total_num, param / origin_param
+        if var is not None:
+            return model, correct/total_num, param / origin_param, float((var[-1] / origin_var[-1]))
+            
+        return model, correct/total_num, param / origin_param, -1
 
     return model
 
@@ -220,38 +212,6 @@ def get_datasets(train=True, bs=512): #8
     return loader
 
 
-class LayerActivationHook:
-    def __init__(self):
-        self.features = None
-
-    def __call__(self, module, input, output):
-        self.features = output
-
-    def get_features(self):
-        return self.features
-
-
-class LayerStatisticsHook:
-    def __init__(self, conv=False):
-        self.conv = conv
-        self.bnorm = None
-
-    def __call__(self, module, input, output):
-        if self.bnorm is None:
-            if self.conv is True:
-                self.bnorm = torch.nn.BatchNorm2d(output.shape[1]).to("cuda")
-            else:
-                self.bnorm = torch.nn.BatchNorm1d(output.shape[1]).to("cuda")
-
-            self.bnorm.train()
-            self.bnorm.momentum = None
-        
-        self.bnorm(output)
-
-    def get_stats(self):
-        return self.bnorm.running_mean, self.bnorm.running_var
-
-
 class AvgLayerStatisticsHook:
     def __init__(self, conv=False):
         self.conv = conv
@@ -275,34 +235,34 @@ class AvgLayerStatisticsHook:
 
 def measure_avg_var(model, dataloader):
     hooks = {
-        "bn1": AvgLayerStatisticsHook(conv=True),
-        "relu_conv": AvgLayerStatisticsHook(conv=True),
-        "layer1.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer1.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer2.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer2.0.relu2": AvgLayerStatisticsHook(conv=True),
-        "layer2.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer3.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer3.0.relu2": AvgLayerStatisticsHook(conv=True),
-        "layer3.1.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer4.0.relu1": AvgLayerStatisticsHook(conv=True),
-        "layer4.0.relu2": AvgLayerStatisticsHook(conv=True),
+        # "bn1": AvgLayerStatisticsHook(conv=True),
+        # "relu_conv": AvgLayerStatisticsHook(conv=True),
+        # "layer1.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer1.1.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer2.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer2.0.relu2": AvgLayerStatisticsHook(conv=True),
+        # "layer2.1.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer3.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer3.0.relu2": AvgLayerStatisticsHook(conv=True),
+        # "layer3.1.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer4.0.relu1": AvgLayerStatisticsHook(conv=True),
+        # "layer4.0.relu2": AvgLayerStatisticsHook(conv=True),
         "layer4.1.relu1": AvgLayerStatisticsHook(conv=True)
     }
 
     handles = list()
-    handles.append(model.conv1.register_forward_hook(hooks["bn1"]))
-    handles.append(model.conv1.register_forward_hook(hooks["relu_conv"]))
-    handles.append(model.layer1[0].conv1.register_forward_hook(hooks["layer1.0.relu1"]))
-    handles.append(model.layer1[1].conv1.register_forward_hook(hooks["layer1.1.relu1"]))
-    handles.append(model.layer2[0].conv1.register_forward_hook(hooks["layer2.0.relu1"]))
-    handles.append(model.layer2[0].conv2.register_forward_hook(hooks["layer2.0.relu2"]))
-    handles.append(model.layer2[1].conv1.register_forward_hook(hooks["layer2.1.relu1"]))
-    handles.append(model.layer3[0].conv1.register_forward_hook(hooks["layer3.0.relu1"]))
-    handles.append(model.layer3[0].conv2.register_forward_hook(hooks["layer3.0.relu2"]))
-    handles.append(model.layer3[1].conv1.register_forward_hook(hooks["layer3.1.relu1"]))
-    handles.append(model.layer4[0].conv1.register_forward_hook(hooks["layer4.0.relu1"]))
-    handles.append(model.layer4[0].conv2.register_forward_hook(hooks["layer4.0.relu2"]))
+    # handles.append(model.conv1.register_forward_hook(hooks["bn1"]))
+    # handles.append(model.conv1.register_forward_hook(hooks["relu_conv"]))
+    # handles.append(model.layer1[0].conv1.register_forward_hook(hooks["layer1.0.relu1"]))
+    # handles.append(model.layer1[1].conv1.register_forward_hook(hooks["layer1.1.relu1"]))
+    # handles.append(model.layer2[0].conv1.register_forward_hook(hooks["layer2.0.relu1"]))
+    # handles.append(model.layer2[0].conv2.register_forward_hook(hooks["layer2.0.relu2"]))
+    # handles.append(model.layer2[1].conv1.register_forward_hook(hooks["layer2.1.relu1"]))
+    # handles.append(model.layer3[0].conv1.register_forward_hook(hooks["layer3.0.relu1"]))
+    # handles.append(model.layer3[0].conv2.register_forward_hook(hooks["layer3.0.relu2"]))
+    # handles.append(model.layer3[1].conv1.register_forward_hook(hooks["layer3.1.relu1"]))
+    # handles.append(model.layer4[0].conv1.register_forward_hook(hooks["layer4.0.relu1"]))
+    # handles.append(model.layer4[0].conv2.register_forward_hook(hooks["layer4.0.relu2"]))
     handles.append(model.layer4[1].conv1.register_forward_hook(hooks["layer4.1.relu1"]))
 
     model.cuda()
@@ -325,7 +285,7 @@ def measure_avg_var(model, dataloader):
     return avg_vars
 
 def main():
-    proj_name = "WM-approx-repair"
+    proj_name = "resnet18 CIFAR10 WM 2 blocks"
     
     model = ResNet18()
     load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt")
@@ -347,22 +307,25 @@ def main():
     threshold=100.40
     figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
 
-    total_params = sum(p.numel() for p in model.parameters())
-    new_model, _, _ = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, 0.5, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
-    new_total_params = sum(p.numel() for p in new_model.parameters())
-    print("ACT SP", new_total_params / total_params)
+    # total_params = sum(p.numel() for p in model.parameters())
+    # new_model, _, _ = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, 0.5, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
+    # new_total_params = sum(p.numel() for p in new_model.parameters())
+    # print("ACT SP", new_total_params / total_params)
 
-    exp_name = "Weight-Clustering DI REPAIR"
+    exp_name = "Weight-Clustering REPAIR"
     desc = {"experiment": exp_name}
     wandb.init(
         project=proj_name,
         config=desc,
         name=exp_name
     )
-    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
+    for ratio in [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
+
+    # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
+        new_model, acc, sparsity, var_ratio = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": 1.0 - sparsity})
+        wandb.log({"var_ratio": var_ratio})
 
     # exp_name = "IFM"
     # desc = {"experiment": exp_name}

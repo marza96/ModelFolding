@@ -239,7 +239,7 @@ def get_datasets(train=True, bs=512): #8
 
 
 def main():
-    proj_name = "IFM-vs-Weight-Clustering-Resnet18_CIFAR100"
+    proj_name = "resnet18 CIFAR100"
     
     model = ResNet18(num_classes=100)
     load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR100.pt")
@@ -252,23 +252,23 @@ def main():
     threshold=10.95
     figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
     
-    ratio = max_ratio
-    total_params = sum(p.numel() for p in model.parameters())
-    new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering)
-    new_total_params = sum(p.numel() for p in new_model.parameters())
-    print("ACT SP", new_total_params / total_params)
+    # ratio = max_ratio
+    # total_params = sum(p.numel() for p in model.parameters())
+    # new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering)
+    # new_total_params = sum(p.numel() for p in new_model.parameters())
+    # print("ACT SP", new_total_params / total_params)
 
-    # exp_name = "Weight-Clustering"
-    # desc = {"experiment": exp_name}
-    # wandb.init(
-    #     project=proj_name,
-    #     config=desc,
-    #     name=exp_name
-    # )
-    # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-    #     new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering)
-    #     wandb.log({"test acc": acc})
-    #     wandb.log({"sparsity": sparsity})
+    exp_name = "Weight-Clustering"
+    desc = {"experiment": exp_name}
+    wandb.init(
+        project=proj_name,
+        config=desc,
+        name=exp_name
+    )
+    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
+        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering)
+        wandb.log({"test acc": acc})
+        wandb.log({"sparsity": sparsity})
 
     # exp_name = "IFM"
     # desc = {"experiment": exp_name}

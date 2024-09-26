@@ -1,11 +1,13 @@
-from model.resnet import ResNet18, merge_channel_ResNet18, merge_channel_ResNet18_clustering
 from model.resnet import ResNet50, merge_channel_ResNet50_clustering_approx_repair
+from model.resnet import ResNet50, ResNet50Wider, merge_channel_ResNet50_clustering_approx_repair_wider, merge_channel_ResNet50_clustering_approx_repair
+
 import wandb
 import argparse
 import torch
 import os
 import copy
 from torchvision import datasets, transforms
+from utils.utils import load_model
 
 from tqdm import tqdm
 import torchvision
@@ -124,6 +126,67 @@ def fuse_bnorms(block, block_len):
             block[i].shortcut[1].running_var.data = torch.ones_like(block[i].shortcut[1].running_var.data)
 
 
+def fuse_bnorms_override(block, block_len):
+    for i in range(block_len):
+        alpha = block[i].bn1.weight.data.clone().detach()
+        beta = block[i].bn1.bias.data.clone().detach()
+        block[i].bn1.weight.data = torch.ones_like(block[i].bn1.weight.data)
+        block[i].bn1.bias.data = torch.zeros_like(block[i].bn1.bias.data)
+
+        block[i].conv1 = ConvBnormFuse(
+            block[i].conv1,
+            block[i].bn1
+        ).fused
+        block[i].bn1.weight.data = alpha
+        block[i].bn1.bias.data = beta
+        block[i].bn1.running_mean.data = torch.zeros_like(block[i].bn1.running_mean.data)
+        block[i].bn1.running_var.data = torch.ones_like(block[i].bn1.running_var.data)
+
+
+        alpha = block[i].bn2.weight.data.clone().detach()
+        beta = block[i].bn2.bias.data.clone().detach()
+        block[i].bn2.weight.data = torch.ones_like(block[i].bn2.weight.data)
+        block[i].bn2.bias.data = torch.zeros_like(block[i].bn2.bias.data)
+
+        block[i].conv2 = ConvBnormFuse(
+            block[i].conv2,
+            block[i].bn2
+        ).fused
+        block[i].bn2.weight.data = alpha
+        block[i].bn2.bias.data = beta
+        block[i].bn2.running_mean.data = torch.zeros_like(block[i].bn2.running_mean.data)
+        block[i].bn2.running_var.data = torch.ones_like(block[i].bn2.running_var.data)
+
+
+        alpha = block[i].bn3.weight.data.clone().detach()
+        beta = block[i].bn3.bias.data.clone().detach()
+        block[i].bn3.weight.data = torch.ones_like(block[i].bn3.weight.data)
+        block[i].bn3.bias.data = torch.zeros_like(block[i].bn3.bias.data)
+
+        block[i].conv3 = ConvBnormFuse(
+            block[i].conv3,
+            block[i].bn3
+        ).fused
+        block[i].bn3.weight.data = alpha
+        block[i].bn3.bias.data = beta
+        block[i].bn3.running_mean.data = torch.zeros_like(block[i].bn3.running_mean.data)
+        block[i].bn3.running_var.data = torch.ones_like(block[i].bn3.running_var.data)
+
+        if block[i].downsample is not None:
+            alpha = block[i].downsample[1].weight.data.clone().detach()
+            beta = block[i].downsample[1].bias.data.clone().detach()
+            block[i].downsample[1].weight.data = torch.ones_like(block[i].downsample[1].weight.data)
+            block[i].downsample[1].bias.data = torch.zeros_like(block[i].downsample[1].bias.data)
+            block[i].downsample[0] = ConvBnormFuse(
+                block[i].downsample[0],
+                block[i].downsample[1]
+            ).fused
+            block[i].downsample[1].weight.data = alpha
+            block[i].downsample[1].bias.data = beta
+            block[i].downsample[1].running_mean.data = torch.zeros_like(block[i].downsample[1].running_mean.data)
+            block[i].downsample[1].running_var.data = torch.ones_like(block[i].downsample[1].running_var.data)
+
+
 def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, threshold, figure_path, method, eval=True):
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
@@ -161,23 +224,6 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     return model
 
 
-def load_model(model, i):
-    sd = torch.load(i, map_location=torch.device('cpu'))
-    new_sd = copy.deepcopy(sd)
-
-    for key, value in sd.items():
-        if "downsample" in key:
-            new_key = key.replace("downsample", "shortcut")
-            new_sd[new_key] = value
-            new_sd.pop(key)
-
-        if "fc" in key:
-            new_key = key.replace("fc", "linear")
-            new_sd[new_key] = value
-            new_sd.pop(key)
-
-    model.load_state_dict(new_sd)
-
 
 def get_datasets(train=True, bs=512): #8
     path   = os.path.dirname(os.path.abspath(__file__))
@@ -207,33 +253,21 @@ def get_datasets(train=True, bs=512): #8
 
 
 def main():
-    proj_name = "IFM-vs-Weight-Clustering-Resnet18-REPAIR"
+    proj_name = "Resnet50 CIFAR100"
     
-    model = ResNet50(num_classes=100)
-    load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet50_1Xwider_CIFAR100.pt")
+    # model = ResNet50(num_classes=100)
+    # load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet50_1Xwider_CIFAR100.pt")
+    # model.cuda()
 
+    model = ResNet50Wider(num_classes=100, width_factor=2)
+    load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet50_2Xwider_CIFAR100.pt", override=False)
     model.cuda()
 
-    test_loader = get_datasets(train=False)
-    train_loader = get_datasets(train=True)
-    max_ratio=0.42#0.35
+    test_loader = get_datasets(train=False, bs=64)
+    train_loader = get_datasets(train=True, bs=64)
     threshold=100.40
     figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
 
-    # correct = 0
-    # total_num = 0
-    # total_loss = 0
-    # with torch.no_grad():
-    #     for i, (X, y) in enumerate(tqdm(test_loader)):
-    #         X = X.cuda()
-    #         y = y.cuda()
-    #         logit = model(X)
-    #         loss = F.cross_entropy(logit, y)
-    #         correct += (logit.max(1)[1] == y).sum().item()
-    #         total_num += y.size(0)
-    #         total_loss += loss.item()
-    # print(f"model before adapt: acc:{correct/total_num * 100:.2f}%, avg loss:{total_loss / (i+1):.4f}")
-    
     alpha = model.bn1.weight.data.clone().detach()
     beta = model.bn1.bias.data.clone().detach()
     model.bn1.weight.data = torch.ones_like(model.bn1.weight.data)
@@ -247,42 +281,31 @@ def main():
     model.bn1.bias.data = beta
     model.bn1.running_mean.data = torch.zeros_like(model.bn1.running_mean.data)
     model.bn1.running_var.data = torch.ones_like(model.bn1.running_var.data)
-    fuse_bnorms(model.layer1, 3)
-    fuse_bnorms(model.layer2, 4)
-    fuse_bnorms(model.layer3, 6)
-    fuse_bnorms(model.layer4, 3)
-    
-    total_params = sum(p.numel() for p in model.parameters())
-    new_model, _, _ = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, 0.5, threshold, figure_path, merge_channel_ResNet50_clustering_approx_repair, eval=True)
-    new_total_params = sum(p.numel() for p in new_model.parameters())
-    print("ACT SP", new_total_params / total_params)
-    
+    # fuse_bnorms(model.layer1, 3)
+    # fuse_bnorms(model.layer2, 4)
+    # fuse_bnorms(model.layer3, 6)
+    # fuse_bnorms(model.layer4, 3)
 
-    # exp_name = "Weight-Clustering Approx REPAIR"
-    # desc = {"experiment": exp_name}
-    # wandb.init(
-    #     project=proj_name,
-    #     config=desc,
-    #     name=exp_name
-    # )
-    # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-    #     new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
-    #     wandb.log({"test acc": acc})
-    #     wandb.log({"sparsity": sparsity})
-
-    # exp_name = "IFM"
-    # desc = {"experiment": exp_name}
-    # wandb.init(
-    #     project=proj_name,
-    #     config=desc,
-    #     name=exp_name,
-    #     reinit=True
-    # )
-    # # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-    # for ratio in [0.05, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55]:
-    #     new_model, acc, sparsity  = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18)
-    #     wandb.log({"test acc": acc})
-    #     wandb.log({"sparsity": sparsity})
+    fuse_bnorms_override(model.layer1, 3)
+    fuse_bnorms_override(model.layer2, 4)
+    fuse_bnorms_override(model.layer3, 6)
+    fuse_bnorms_override(model.layer4, 3)
+    
+    threshold=10.95
+    figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
+    
+    exp_name = "WM APPROX REPAIR 2x"
+    desc = {"experiment": exp_name}
+    wandb.init(
+        project=proj_name,
+        config=desc,
+        name=exp_name
+    )
+    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
+        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet50_clustering_approx_repair_wider)
+        wandb.log({"test acc": acc})
+        wandb.log({"sparsity": sparsity})
 
 if __name__ == "__main__":
   main()
+
