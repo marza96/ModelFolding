@@ -419,22 +419,19 @@ def get_axis_to_perm_ResNet18(approx_repair=False, override=True):
         **norm(f"{name}.bn2", p_out),
     }
     axis_to_perm = {
-        # **conv('conv1', None, 'relu_conv'),
-        # **norm('bn1', 'relu_conv'),
+        **conv('conv1', None, 'relu_conv'),
+        **norm('bn1', 'relu_conv'),
 
-        # **basicblock('layer1.0', 'relu_conv', 'relu_conv'),
-        # **basicblock('layer1.1', 'relu_conv', 'relu_conv'),
+        **basicblock('layer1.0', 'relu_conv', 'relu_conv'),
+        **basicblock('layer1.1', 'relu_conv', 'relu_conv'),
 
-        # **basicblock('layer2.0', 'relu_conv', 'layer2.0.relu2'),
-        # **conv(f'layer2.0.{sh}.0', 'relu_conv', 'layer2.0.relu2'),
-        # **norm(f'layer2.0.{sh}.1', 'layer2.0.relu2'),
-        # **basicblock('layer2.1', 'layer2.0.relu2', 'layer2.0.relu2'),
+        **basicblock('layer2.0', 'relu_conv', 'layer2.0.relu2'),
+        **conv(f'layer2.0.{sh}.0', 'relu_conv', 'layer2.0.relu2'),
+        **norm(f'layer2.0.{sh}.1', 'layer2.0.relu2'),
+        **basicblock('layer2.1', 'layer2.0.relu2', 'layer2.0.relu2'),
 
-        # **basicblock('layer3.0', 'layer2.0.relu2', 'layer3.0.relu2'),
-        # **conv(f'layer3.0.{sh}.0', 'layer2.0.relu2', 'layer3.0.relu2'),
-
-        **basicblock('layer3.0', None, 'layer3.0.relu2'),
-        **conv(f'layer3.0.{sh}.0', None, 'layer3.0.relu2'),
+        **basicblock('layer3.0', 'layer2.0.relu2', 'layer3.0.relu2'),
+        **conv(f'layer3.0.{sh}.0', 'layer2.0.relu2', 'layer3.0.relu2'),
         **norm(f'layer3.0.{sh}.1', 'layer3.0.relu2'),
         **basicblock('layer3.1', 'layer3.0.relu2', 'layer3.0.relu2'),
 

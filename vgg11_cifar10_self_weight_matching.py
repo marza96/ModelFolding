@@ -88,17 +88,6 @@ def main():
     test_loader = get_cifar10(train=False)
     train_loader = get_cifar10(train=True)
 
-    for module in model.modules():
-        if isinstance(module, torch.nn.BatchNorm2d):
-            module.reset_running_stats()
-            module.momentum = None
-
-    model.train()
-    for x, _ in tqdm(train_loader):
-        model(x.to("cuda"))
-
-        break
-        
     model.eval()
 
     proj_name = args.proj_name
@@ -111,7 +100,7 @@ def main():
         name=exp_name,
         reinit=True
     )
-    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
+    for ratio in [0.15, 0.16, 0.20, 0.25, 0.27, 0.30, 0.35, 0.40, 0.45, 0.5, 0.55, 0.65, 0.75, 0.85, 0.95]:
         acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader,  merge_channel_vgg11_clustering, args.repair, ratio)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": sparsity})

@@ -1,4 +1,5 @@
 from model.resnet import ResNet18, merge_channel_ResNet18_clustering
+from utils.datasets import get_cifar10
 
 import wandb
 import argparse
@@ -12,71 +13,9 @@ from tqdm import tqdm
 import torchvision
 import numpy as np
 
-from math import pi
 from thop import profile
-from scipy.special import erf
 
 import torch.nn.functional as F
-import torch.nn as nn
-
-
-class ConvBnormFuse(torch.nn.Module):
-    def __init__(self, conv, bnorm):
-        super().__init__()
-        self.fused = torch.nn.Conv2d(
-            conv.in_channels,
-            conv.out_channels,
-            kernel_size=conv.kernel_size,
-            stride=conv.stride,
-            padding=conv.padding,
-            bias=True
-        )
-        self.weight = self.fused.weight
-        self.bias = self.fused.bias
-
-        self._fuse(conv, bnorm)
-
-    def _fuse(self, conv, bn):
-        w_conv = conv.weight.clone().reshape(conv.out_channels, -1).detach() #view umjesto reshape
-        w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps+bn.running_var))).detach()
-
-        w_bn.requires_grad = False
-        w_conv.requires_grad = False
-        
-        ww = torch.mm(w_bn.detach(), w_conv.detach())
-        ww.requires_grad = False
-        self.fused.weight.data = ww.data.view(self.fused.weight.detach().size()).detach() 
- 
-        if conv.bias is not None:
-            b_conv = conv.bias.detach()
-        else:
-            b_conv = torch.zeros( conv.weight.size(0), device=conv.weight.device )
-
-        bn.bias.requires_grad = False
-        bn.weight.requires_grad = False
-
-        b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
-        
-        bb = ( torch.matmul(w_bn, b_conv) + b_bn ).detach()
-        self.fused.bias.data = bb.data
-
-    def forward(self, x):
-        return self.fused(x)
-
-
-def fuse_bnorms(block):
-    for i in range(2):
-        block[i].conv1 = ConvBnormFuse(
-            block[i].conv1,
-            block[i].bn1
-        ).fused
-        block[i].bn1 = torch.nn.Identity()
-
-        block[i].conv2 = ConvBnormFuse(
-            block[i].conv2,
-            block[i].bn2
-        ).fused
-        block[i].bn2 = torch.nn.Identity()
 
 
 def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, threshold, figure_path, method, eval=True):
@@ -291,26 +230,11 @@ def main():
     load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt")
     model.cuda()
 
-    # model.conv1 = ConvBnormFuse(
-    #     model.conv1,
-    #     model.bn1
-    # ).fused
-    # model.bn1 = nn.Identity()
-    # fuse_bnorms(model.layer1)
-    # fuse_bnorms(model.layer2)
-    # fuse_bnorms(model.layer3)
-    # fuse_bnorms(model.layer4)
-
-    test_loader = get_datasets(train=False)
-    train_loader = get_datasets(train=True)
+    test_loader = get_cifar10(train=False)
+    train_loader = get_cifar10(train=True)
     max_ratio=0.42#0.35
     threshold=100.40
     figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
-
-    # total_params = sum(p.numel() for p in model.parameters())
-    # new_model, _, _ = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, 0.5, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
-    # new_total_params = sum(p.numel() for p in new_model.parameters())
-    # print("ACT SP", new_total_params / total_params)
 
     exp_name = "Weight-Clustering REPAIR"
     desc = {"experiment": exp_name}
@@ -320,26 +244,11 @@ def main():
         name=exp_name
     )
     for ratio in [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-
-    # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
         new_model, acc, sparsity, var_ratio = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering, eval=True)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": 1.0 - sparsity})
         wandb.log({"var_ratio": var_ratio})
 
-    # exp_name = "IFM"
-    # desc = {"experiment": exp_name}
-    # wandb.init(
-    #     project=proj_name,
-    #     config=desc,
-    #     name=exp_name,
-    #     reinit=True
-    # )
-    # # for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-    # for ratio in [0.05, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55]:
-    #     new_model, acc, sparsity  = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18)
-    #     wandb.log({"test acc": acc})
-    #     wandb.log({"sparsity": sparsity})
 
 if __name__ == "__main__":
   main()

@@ -88,7 +88,7 @@ def main():
         name=exp_name,
         reinit=True
     )
-    for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
+    for ratio in [0.15, 0.16, 0.20, 0.25, 0.27, 0.30, 0.35, 0.40, 0.45, 0.5, 0.55, 0.65, 0.75, 0.85, 0.95]:
         acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, 100.0,  merge_channel_vgg11_clustering_approx_repair)
         print("ACC", acc)
         wandb.log({"test acc": acc})

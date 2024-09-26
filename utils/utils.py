@@ -11,7 +11,93 @@ DI_REPAIR = "DI_REPAIR"
 REPAIR    = "REPAIR"
 
 
-def eval(model, dataloader):
+class AvgLayerStatisticsHook:
+    def __init__(self, conv=False):
+        self.conv = conv
+        self.bnorm = None
+
+    def __call__(self, module, input, output):
+        if self.bnorm is None:
+            if self.conv is True:
+                self.bnorm = torch.nn.BatchNorm2d(output.shape[1]).to("cuda")
+            else:
+                self.bnorm = torch.nn.BatchNorm1d(output.shape[1]).to("cuda")
+
+            self.bnorm.train()
+            self.bnorm.momentum = None
+        
+        self.bnorm(output)
+
+    def get_stats(self):
+        return self.bnorm.running_var.mean()
+
+
+def fuse_bnorms_resnet18(model):
+    alpha = model.bn1.weight.data.clone().detach()
+    beta = model.bn1.bias.data.clone().detach()
+    model.bn1.weight.data = torch.ones_like(model.bn1.weight.data)
+    model.bn1.bias.data = torch.zeros_like(model.bn1.bias.data)
+
+    model.conv1 = ConvBnormFuse(
+        model.conv1,
+        model.bn1
+    ).fused
+    model.bn1.weight.data = alpha
+    model.bn1.bias.data = beta
+    model.bn1.running_mean.data = torch.zeros_like(model.bn1.running_mean.data)
+    model.bn1.running_var.data = torch.ones_like(model.bn1.running_var.data)
+    fuse_bnorms_basic_block(model.layer1)
+    fuse_bnorms_basic_block(model.layer2)
+    fuse_bnorms_basic_block(model.layer3)
+    fuse_bnorms_basic_block(model.layer4)
+
+
+def fuse_bnorms_basic_block(block):
+    for i in range(2):
+        alpha = block[i].bn1.weight.data.clone().detach()
+        beta = block[i].bn1.bias.data.clone().detach()
+        block[i].bn1.weight.data = torch.ones_like(block[i].bn1.weight.data)
+        block[i].bn1.bias.data = torch.zeros_like(block[i].bn1.bias.data)
+
+        block[i].conv1 = ConvBnormFuse(
+            block[i].conv1,
+            block[i].bn1
+        ).fused
+        block[i].bn1.weight.data = alpha
+        block[i].bn1.bias.data = beta
+        block[i].bn1.running_mean.data = torch.zeros_like(block[i].bn1.running_mean.data)
+        block[i].bn1.running_var.data = torch.ones_like(block[i].bn1.running_var.data)
+
+        alpha = block[i].bn2.weight.data.clone().detach()
+        beta = block[i].bn2.bias.data.clone().detach()
+        block[i].bn2.weight.data = torch.ones_like(block[i].bn2.weight.data)
+        block[i].bn2.bias.data = torch.zeros_like(block[i].bn2.bias.data)
+
+        block[i].conv2 = ConvBnormFuse(
+            block[i].conv2,
+            block[i].bn2
+        ).fused
+        block[i].bn2.weight.data = alpha
+        block[i].bn2.bias.data = beta
+        block[i].bn2.running_mean.data = torch.zeros_like(block[i].bn2.running_mean.data)
+        block[i].bn2.running_var.data = torch.ones_like(block[i].bn2.running_var.data)
+
+        if len(block[i].shortcut) == 2:
+            alpha = block[i].shortcut[1].weight.data.clone().detach()
+            beta = block[i].shortcut[1].bias.data.clone().detach()
+            block[i].shortcut[1].weight.data = torch.ones_like(block[i].shortcut[1].weight.data)
+            block[i].shortcut[1].bias.data = torch.zeros_like(block[i].shortcut[1].bias.data)
+            block[i].shortcut[0] = ConvBnormFuse(
+                block[i].shortcut[0],
+                block[i].shortcut[1]
+            ).fused
+            block[i].shortcut[1].weight.data = alpha
+            block[i].shortcut[1].bias.data = beta
+            block[i].shortcut[1].running_mean.data = torch.zeros_like(block[i].shortcut[1].running_mean.data)
+            block[i].shortcut[1].running_var.data = torch.ones_like(block[i].shortcut[1].running_var.data)
+
+
+def eval_model(model, dataloader):
     correct = 0
     total_num = 0
     total_loss = 0
@@ -25,7 +111,7 @@ def eval(model, dataloader):
             total_num += y.size(0)
             total_loss += loss.item()
 
-    return correct / total_num
+    return correct / total_num, total_loss / total_num
 
 
 def load_model(model, i, override=True):
