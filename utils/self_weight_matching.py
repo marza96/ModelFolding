@@ -5,14 +5,13 @@ import torch.nn as nn
 import torch
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering, SpectralClustering, BisectingKMeans
-from sklearn_extra.robust import RobustWeightedKMeans
-from sklearn_extra.cluster import KMedoids, CLARA
 from hkmeans import HKMeans
 from sklearn import preprocessing
 from sklearn.decomposition import PCA
 
 import itertools
 import matplotlib.pyplot as plt
+
 
 
 def axes2perm_to_perm2axes(axes_to_perm):
@@ -250,35 +249,6 @@ def merge_channel_p_name_clustering_approx_repair(perm_to_axes, params, p_name, 
     return params
 
 
-def merge_channel_p_name(perm_to_axes, params, merge_num, p_name, n, i, j):
-    min_ij = min(i, j)
-    max_ij = max(i, j)
-    indices = [num for num in range(min_ij)] + [num for num in range(min_ij + 1, max_ij)] + [num for num in range(max_ij + 1, n)] + [max_ij, min_ij]
-    assert len(indices) == n
-    merge_num_list = merge_num[p_name]
-    merge_num_list = merge_num_list[indices]
-    for wk, axis in perm_to_axes[p_name]:
-        if wk == "conv1.weightdd" or wk == "conv1.bnddd" in wk:
-            pass
-        else:
-            w_a = params[wk]
-            assert axis in (0, 1)
-            if axis == 0:
-                w_a = w_a[indices]
-                w_a[-2] += w_a[-1]
-                params[wk] = w_a[:-1]
-            else:
-                w_a = w_a[:, indices]
-                w_a[:, -2] = (w_a[:, -2] * merge_num_list[-2] + w_a[:, -1] * merge_num_list[-1]) / (
-                            merge_num_list[-2] + merge_num_list[-1])
-                params[wk] = w_a[:, :-1]
-
-    merge_num_list[-2] += merge_num_list[-1]
-    merge_num[p_name] =  merge_num_list[:-1]
-
-    return params, merge_num
-
-
 class WeightClustering:
     def __init__(self, n_clusters, n_features, normalize=False, use_kmeans=False):
         self.n_clusters = n_clusters
@@ -293,10 +263,6 @@ class WeightClustering:
             km = HKMeans(n_clusters=self.n_clusters, random_state=None, n_init=10,
                         n_jobs=-1, max_iter=10, verbose=True)
 
-        # km = SpectralClustering(
-        #     n_clusters=self.n_clusters,
-        #     assign_labels="cluster_qr"
-        # )
         X_scaled = weight.cpu().numpy()
 
         if self.normalize is True:
@@ -329,11 +295,9 @@ def self_merge_weight_clustering(perm_to_axes, params, max_ratio=0.5, threshold=
 
     merges = dict()
     inertias = dict()
-    ratios = dict()
 
     for p_name in perm_sizes.keys():
         print('merging block: "' + p_name + '"')
-        ratio = max_ratio
         n = params[perm_to_axes[p_name][0][0]].shape[perm_to_axes[p_name][0][1]]
 
         # if p_name == "layer3.0.relu1":
