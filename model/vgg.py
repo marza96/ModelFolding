@@ -1,15 +1,6 @@
-import torch
 import torch.nn as nn
-from utils.self_weight_matching import axes2perm_to_perm2axes, self_merge_weight_clustering
+from utils.weight_clustering import axes2perm_to_perm2axes, self_merge_weight_clustering
 from functools import reduce
-
-
-cfg = {
-    'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-    'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
-}
 
 
 def get_axis_to_perm(model):
@@ -22,11 +13,9 @@ def get_axis_to_perm(model):
 
     for name, module in model.named_modules():
         if "classifier" in name and isinstance(module, nn.Linear):
-            # print("calsss")
             max_cl_idx = max(max_cl_idx, int(name.split(".")[1]))
             min_cl_idx = min(min_cl_idx, int(name.split(".")[1]))
         if isinstance(module, nn.Conv2d):
-            # print("name", name)
             max_conv_idx = max(max_conv_idx, int(name.split(".")[1]))
             min_conv_idx = min(min_conv_idx, int(name.split(".")[1]))
 

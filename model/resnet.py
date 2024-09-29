@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.self_weight_matching import axes2perm_to_perm2axes, self_merge_weight_clustering
+from utils.weight_clustering import axes2perm_to_perm2axes, self_merge_weight_clustering
 from typing import Any, Callable, List, Optional, Type, Union
 
 from functools import reduce
