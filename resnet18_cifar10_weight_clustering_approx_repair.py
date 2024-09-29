@@ -61,7 +61,7 @@ def measure_avg_var(model, dataloader, hooks):
     return avg_vars
 
 
-def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, threshold, figure_path, method, eval=True, measure_variance=False):
+def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, method, eval=True, measure_variance=False):
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
     origin_model.eval()
@@ -75,7 +75,7 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
     
     hooks = None
 
-    model = method(copy.deepcopy(origin_model), checkpoint, max_ratio=max_ratio, threshold=threshold, hooks=hooks)
+    model = method(copy.deepcopy(origin_model), checkpoint, max_ratio=max_ratio, hooks=hooks)
     model.cuda()
     model.eval()
     flop, param = profile(model, inputs=(input,))
@@ -103,32 +103,37 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
 
 
 def main():
-    proj_name = "WM-approx-repair"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint", type=str)
+    parser.add_argument("--proj_name", type=str, help="", default="Folding Resnet18 cifar10")
+    parser.add_argument("--exp_name", type=str, help="", default="WM REPAIR")
+    args = parser.parse_args()
+
+    proj_name = args.proj_name
     
     model = ResNet18()
-    load_model(model, "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt")
+    "/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt"
+    load_model(model, args.checkpoint)
     model.cuda()
 
     test_loader = get_cifar10(train=False)
     train_loader = get_cifar10(train=True)
     fuse_bnorms_resnet18(model)
 
-    threshold=100.40
-    figure_path = '/home/m/marza1/Iterative-Feature-Merging/'
-
-    exp_name = "Weight-Clustering APPROXIMATE REPAIR"
-    desc = {"experiment": exp_name}
+    desc = {"experiment": args.exp_name}
+    desc = {"experiment": args.exp_name}
     wandb.init(
         project=proj_name,
         config=desc,
-        name=exp_name
+        name=args.exp_name
     )
 
     for ratio in [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-        _, acc, sparsity, var_ratio = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, threshold, figure_path, merge_channel_ResNet18_clustering_approx_repair, eval=True)
+        _, acc, sparsity, var_ratio = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_ResNet18_clustering_approx_repair, eval=True)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": 1.0 - sparsity})
         wandb.log({"var_ratio": var_ratio})
+
 
 if __name__ == "__main__":
   main()

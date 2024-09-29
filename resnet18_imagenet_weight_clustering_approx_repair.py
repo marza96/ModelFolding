@@ -162,7 +162,6 @@ def main():
     total_num = 0
     total_loss = 0
     with torch.no_grad():
-
         for i, (X, y) in enumerate(tqdm(test_loader)):
             X = X.cuda()
             y = y.cuda()

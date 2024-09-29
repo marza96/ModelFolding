@@ -6,6 +6,33 @@ from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
 
 
+def get_cifar100(train=True, bs=512): #8
+    path   = os.path.dirname(os.path.abspath(__file__))
+    
+    normalize = transforms.Normalize(mean=[0.5071, 0.4865, 0.4409], std=[0.2673, 0.2564, 0.2762])
+    transform_train = transforms.Compose([transforms.RandomCrop(32, padding=4),transforms.RandomHorizontalFlip(), transforms.RandomRotation(15), transforms.ToTensor(), normalize])
+    transform_test = transforms.Compose([transforms.ToTensor(), normalize])
+
+    transform = transform_train
+    if train is False:
+        transform = transform_test
+
+    mnistTrainSet = torchvision.datasets.CIFAR100(
+        root=path + '/data', 
+        train=train,
+        download=True, 
+        transform=transform
+    )
+
+    loader = torch.utils.data.DataLoader(
+        mnistTrainSet,
+        batch_size=bs,
+        shuffle=True,
+        num_workers=8)
+    
+    return loader
+
+
 def get_imagenet(datadir, train=True, bs=256):
     mean=[0.485, 0.456, 0.406]
     std=[0.229, 0.224, 0.225]
