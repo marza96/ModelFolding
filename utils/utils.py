@@ -32,6 +32,26 @@ class AvgLayerStatisticsHook:
         return self.bnorm.running_var.mean()
 
 
+def fuse_bnorms_vgg(model):
+    for i in range(len(model.features)):
+        if isinstance(model.features[i], torch.nn.Conv2d):
+            print(type(model.features[i]), model.features[i + 1])
+
+            alpha = model.features[i + 1].weight.data.clone().detach()
+            beta = model.features[i + 1].bias.data.clone().detach()
+            model.features[i + 1].weight.data = torch.ones_like(model.features[i + 1].weight.data)
+            model.features[i + 1].bias.data = torch.zeros_like(model.features[i + 1].bias.data)
+
+            model.features[i] = ConvBnormFuse(
+                model.features[i],
+                model.features[i + 1]
+            ).fused
+            model.features[i + 1].weight.data = alpha
+            model.features[i + 1].bias.data = beta
+            model.features[i + 1].running_mean.data = torch.zeros_like(model.features[i + 1].running_mean.data)
+            model.features[i + 1].running_var.data = torch.ones_like(model.features[i + 1].running_var.data)
+
+
 def fuse_bnorms_resnet18(model):
     alpha = model.bn1.weight.data.clone().detach()
     beta = model.bn1.bias.data.clone().detach()
@@ -98,6 +118,8 @@ def fuse_bnorms_basic_block(block):
 
 
 def eval_model(model, dataloader):
+    model.eval()
+    print("EEEEEEE")
     correct = 0
     total_num = 0
     total_loss = 0

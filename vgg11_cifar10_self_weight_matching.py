@@ -35,6 +35,7 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, method, repa
             model.train()
             for x, _ in tqdm(train_loader):
                 model(x.to("cuda"))
+
         elif repair == DI_REPAIR: 
             model.eval()
 
@@ -69,18 +70,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--width", type=int, default=1)
     parser.add_argument("--checkpoint", type=str)
-    parser.add_argument("--repair", type=str, default="NO REPAIR", help="")
+    parser.add_argument("--repair", type=str, default="NO_REPAIR", help="")
     parser.add_argument("--proj_name", type=str, help="", default="Folding VGG11 cifar10")
     parser.add_argument("--exp_name", type=str, help="", default="WM REPAIR")
     args = parser.parse_args()
 
-
-    # load model
     vgg11_cfg  = [args.width * 64, 'M', args.width * 128, 'M', args.width * 256, args.width * 256, 'M', args.width * 512, args.width * 512, 'M', args.width * 512, 512, 'M']
     features   = make_layers(vgg11_cfg, batch_norm=True)
     model      = VGG(features=features, num_classes=10)
     # "/home/m/marza1/Iterative-Feature-Merging/vgg11_bn_1Xwider_CIFAR10.pt"
-    checkpoint = torch.load(args.checkpoint)
+    checkpoint = torch.load(args.checkpoint, map_location="cpu")
 
     model.load_state_dict(checkpoint)
     model.cuda()
@@ -100,7 +99,7 @@ def main():
         name=exp_name,
         reinit=True
     )
-    for ratio in [0.15, 0.16, 0.20, 0.25, 0.27, 0.30, 0.35, 0.40, 0.45, 0.5, 0.55, 0.65, 0.75, 0.85, 0.95]:
+    for ratio in [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
         acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader,  merge_channel_vgg11_clustering, args.repair, ratio)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": sparsity})
