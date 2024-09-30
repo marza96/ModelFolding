@@ -13,7 +13,7 @@ from thop import profile
 import torch.nn.functional as F
 
 
-def test_merge(origin_model, checkpoint, test_loader, train_loader, method, repair, ratio):
+def test_merge(origin_model, checkpoint, test_loader, train_loader, method, repair, ratio, di_samples_path):
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
     origin_model.eval()
@@ -45,7 +45,7 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, method, repa
                     module.momentum = None
 
             model.train()
-            model(torch.load("cifar10_vgg.pt").to("cuda"))
+            model(torch.load(di_samples_path).to("cuda"))
 
     model.eval()
     correct = 0
@@ -73,12 +73,12 @@ def main():
     parser.add_argument("--repair", type=str, default="NO_REPAIR", help="")
     parser.add_argument("--proj_name", type=str, help="", default="Folding VGG11 cifar10")
     parser.add_argument("--exp_name", type=str, help="", default="WM REPAIR")
+    parser.add_argument("--di_samples_path", type=str, default="cifar10_vgg.pt")
     args = parser.parse_args()
 
     vgg11_cfg  = [args.width * 64, 'M', args.width * 128, 'M', args.width * 256, args.width * 256, 'M', args.width * 512, args.width * 512, 'M', args.width * 512, 512, 'M']
     features   = make_layers(vgg11_cfg, batch_norm=True)
     model      = VGG(features=features, num_classes=10)
-    # "/home/m/marza1/Iterative-Feature-Merging/vgg11_bn_1Xwider_CIFAR10.pt"
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
 
     model.load_state_dict(checkpoint)
@@ -100,7 +100,7 @@ def main():
         reinit=True
     )
     for ratio in [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-        acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader,  merge_channel_vgg11_clustering, args.repair, ratio)
+        acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader,  merge_channel_vgg11_clustering, args.repair, ratio, di_samples_path)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": sparsity})
 

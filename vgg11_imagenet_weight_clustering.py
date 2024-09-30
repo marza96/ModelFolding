@@ -15,7 +15,7 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, method, repair):
+def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, method, repair, di_samples_path):
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
     origin_model.eval()
@@ -33,7 +33,7 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, m
                     module.reset_running_stats()
                     module.momentum = None
 
-            data = torch.load("di_vgg_imagenet_256.pt", map_location="cpu")
+            data = torch.load(di_samples_path, map_location="cpu")
             model.train()
             model(data[:128, :, :, :].cuda())
             model(data[128:, :, :, :].cuda())
@@ -68,6 +68,7 @@ def main():
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--proj_name", type=str, help="", default="Folding ResNet18 ImageNet")
     parser.add_argument("--exp_name", type=str, help="", default="APPROX REPAIR")
+    parser.add_argument("--di_samples_path", type=str, default="di_vgg_imagenet_256.pt")
     args = parser.parse_args()
 
     # load model
@@ -91,9 +92,8 @@ def main():
         reinit=True
     )
 
-    # for ratio in [0.025, 0.05, 0.1, 0.12, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-    for ratio in [0.15]:
-        acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_vgg11_clustering, args.repair)
+    for ratio in [0.025, 0.05, 0.1, 0.12, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
+        acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_vgg11_clustering, args.repair, args.di_samples_path)
         
         print("ACC", acc)
         wandb.log({"test acc": acc})

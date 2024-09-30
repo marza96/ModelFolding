@@ -42,14 +42,12 @@ def main():
     vgg11_cfg  = [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M']
     features   = make_layers(vgg11_cfg, batch_norm=True)
     model      = VGG(features=features, num_classes=1000)
-    #"/home/m/marza1/Iterative-Feature-Merging/vgg11_imagenet.pt"
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
 
     model.load_state_dict(checkpoint)
     model.cuda()
 
     fuse_bnorms_vgg(model)
-    # "/home/m/marza1/imagenet/ImageNet/ILSVRC12"
     test_loader = get_imagenet(args.dataset_root, train=False, bs=64)
     train_loader = get_imagenet(args.dataset_root, train=True, bs=64)
 

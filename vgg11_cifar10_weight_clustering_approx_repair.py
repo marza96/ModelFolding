@@ -40,7 +40,6 @@ def main():
     features   = make_layers(vgg11_cfg, batch_norm=True)
     model      = VGG(features=features, num_classes=10)
 
-    #"/home/m/marza1/Iterative-Feature-Merging/vgg11_bn_1Xwider_CIFAR10.pt"
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
 
     model.load_state_dict(checkpoint)

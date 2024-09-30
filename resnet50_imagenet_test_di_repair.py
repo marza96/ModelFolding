@@ -53,14 +53,10 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
                 module.momentum = None
 
         data = torch.load("imagenet_di.pt", map_location="cpu")
-        print("DBG", data.shape)
         model.train()
-        print("DI")
         model(data[:128, :, :, :].cuda())
         model(data[128:, :, :, :].cuda())
         model.eval()
-
-    print("SPPPP", param / origin_param)
 
     if eval is True:
         correct = 0
@@ -77,8 +73,7 @@ def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, th
                 total_loss += loss.item()
         print(f"model after adapt: acc:{correct/total_num * 100:.2f}%, avg loss:{total_loss / (i+1):.4f}")
 
-    print(
-        f"flop:{flop}/{origin_flop}, {flop / origin_flop * 100:.2f}%; param:{param}/{origin_param}, {param / origin_param * 100:.2f} %")
+    print(f"flop:{flop}/{origin_flop}, {flop / origin_flop * 100:.2f}%; param:{param}/{origin_param}, {param / origin_param * 100:.2f} %")
     # with open(os.path.join(figure_path, "self_merge_result.txt"), 'a+') as f:
     #     f.write(f"max_ratio:{max_ratio}, threshold:{threshold}\n")
     #     f.write(f"model after adapt: acc:{correct/total_num * 100:.2f}%, avg loss:{total_loss / (i+1):.4f}\n")

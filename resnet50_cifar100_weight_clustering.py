@@ -11,7 +11,7 @@ import torch
 import copy
 
 
-def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, method, repair, eval=True):
+def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, method, repair, di_samples_path, eval=True):
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
     origin_model.eval()
@@ -30,7 +30,7 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, m
                     module.momentum = None
 
             model.train()
-            model(torch.load("cifar100.pt").to("cuda"))
+            model(torch.load(di_samples_path).to("cuda"))
             model.eval()
 
         elif repair == REPAIR:
@@ -60,11 +60,10 @@ def main():
     parser.add_argument("--repair", type=str, default="NO_REPAIR", help="")
     parser.add_argument("--proj_name", type=str, help="", default="Folding Resnet50 cifar100")
     parser.add_argument("--exp_name", type=str, help="", default="WM REPAIR")
+    parser.add_argument("--di_samples_path", type=str, default="cifar100.pt")
     args = parser.parse_args()
-
     
     model = ResNet50Wider(num_classes=100, width_factor=args.width)
-    #"/home/m/marza1/Iterative-Feature-Merging/resnet50_1Xwider_CIFAR100.pt"
     load_model(model, args.checkpoint, override=False)
     model.cuda()
 
@@ -80,7 +79,7 @@ def main():
         name=args.exp_name
     )
     for ratio in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
-        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_ResNet50_clustering_wider, args.repair)
+        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_ResNet50_clustering_wider, args.repair, args.di_samples_path)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": sparsity})
 
