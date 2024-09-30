@@ -1,15 +1,14 @@
 from model.resnet import ResNet18, merge_channel_ResNet18_clustering
-from utils.datasets import get_cifar10
 from utils.utils import eval_model, load_model, AvgLayerStatisticsHook
-from utils.utils import DF_REPAIR, DI_REPAIR, NO_REPAIR, REPAIR
+from utils.utils import DI_REPAIR, NO_REPAIR, REPAIR
+from utils.datasets import get_cifar10
+from thop import profile
+from tqdm import tqdm
 
 import wandb
 import argparse
 import torch
 import copy
-
-from tqdm import tqdm
-from thop import profile
 
 
 def measure_avg_var(model, dataloader):
@@ -133,7 +132,6 @@ def main():
     parser.add_argument("--exp_name", type=str, help="", default="WM REPAIR")
     args = parser.parse_args()
 
-    proj_name = args.proj_name
     
     model = ResNet18()
     #"/home/m/marza1/Iterative-Feature-Merging/resnet18_1Xwider_CIFAR10_latest.pt"
@@ -145,7 +143,7 @@ def main():
 
     desc = {"experiment": args.exp_name}
     wandb.init(
-        project=proj_name,
+        project=args.proj_name,
         config=desc,
         name=args.exp_name
     )

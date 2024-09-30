@@ -397,7 +397,6 @@ def get_axis_to_perm_ResNet50(approx_repair=False, override=True):
 
 def get_axis_to_perm_ResNet18(approx_repair=False, override=True):
     conv = lambda name, p_in, p_out: {f"{name}.weight": (p_out, p_in, None, None,)}
-    conv_b = lambda name, p_in, p_out: {f"{name}.weight": (p_out, p_in, None, None,), f"{name}.bias": (p_out,)}
 
     if approx_repair is True:
         conv = lambda name, p_in, p_out: {f"{name}.weight": (p_out, p_in, None, None,), f"{name}.bias": (p_out,)}
@@ -534,7 +533,6 @@ def merge_channel_ResNet18_big_clustering(origin_model, model_param, max_ratio=1
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
     
     return origin_model
-
 
 
 def merge_channel_ResNet50_big_clustering(origin_model, model_param, max_ratio=1., threshold=0.1, hooks=None):
