@@ -59,8 +59,7 @@ def main():
         config=desc,
         name=args.exp_name
     )
-    # for ratio in [0.025, 0.05, 0.1, 0.12, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-    for ratio in [0.15]:
+    for ratio in [0.025, 0.05, 0.1, 0.12, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
         new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_ResNet18_big_clustering_approx_repair, eval=True)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": 1.0 - sparsity})

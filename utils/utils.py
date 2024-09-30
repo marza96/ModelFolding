@@ -1,6 +1,5 @@
 import torch
 import copy
-from collections import defaultdict
 from tqdm import tqdm
 import torch.nn.functional as F
 
@@ -30,7 +29,39 @@ class AvgLayerStatisticsHook:
 
     def get_stats(self):
         return self.bnorm.running_var.mean()
-    
+
+
+def fuse_bnorms_mlp(model):
+    alpha = torch.diag(model.bn1.weight.data.clone().detach())
+    beta = model.bn1.bias.data.clone().detach()
+    rm = model.bn1.running_mean.data.clone().detach()
+    rv = torch.sqrt(model.bn1.running_var.data.clone().detach())
+    rv = torch.diag(1.0 / rv)
+    model.fc1.weight.data = alpha @ rv @ model.fc1.weight.data.clone().detach()
+    model.fc1.bias.data = alpha @ rv @ ( model.fc1.bias.data.clone().detach()  - rm) + beta
+    model.bn1.running_var.data = torch.ones_like(model.bn1.weight.data)
+    model.bn1.running_mean.data = torch.zeros_like(model.bn1.bias.data)
+
+    alpha = torch.diag(model.bn2.weight.data.clone().detach())
+    beta = model.bn2.bias.data.clone().detach()
+    rm = model.bn2.running_mean.data.clone().detach()
+    rv = torch.sqrt(model.bn2.running_var.data.clone().detach())
+    rv = torch.diag(1.0 / rv)
+    model.fc2.weight.data = alpha @ rv @ model.fc2.weight.data.clone().detach()
+    model.fc2.bias.data = alpha @ rv @ ( model.fc2.bias.data.clone().detach()  - rm) + beta
+    model.bn2.running_var.data = torch.ones_like(model.bn2.weight.data)
+    model.bn2.running_mean.data = torch.zeros_like(model.bn2.bias.data)
+
+    alpha = torch.diag(model.bn3.weight.data.clone().detach())
+    beta = model.bn3.bias.data.clone().detach()
+    rm = model.bn3.running_mean.data.clone().detach()
+    rv = torch.sqrt(model.bn3.running_var.data.clone().detach())
+    rv = torch.diag(1.0 / rv)
+    model.fc3.weight.data = alpha @ rv @ model.fc3.weight.data.clone().detach()
+    model.fc3.bias.data = alpha @ rv @ ( model.fc3.bias.data.clone().detach()  - rm) + beta
+    model.bn3.running_var.data = torch.ones_like(model.bn3.weight.data)
+    model.bn3.running_mean.data = torch.zeros_like(model.bn3.bias.data)
+
 
 def fuse_bnorms_arbitrary(block, block_len):
     for i in range(block_len):
