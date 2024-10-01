@@ -76,3 +76,29 @@ def get_cifar10(train=True, bs=512): #8
         num_workers=8)
     
     return loader
+
+def get_fashion_mnist(train=True, bs=512): #8
+    path   = os.path.dirname(os.path.abspath(__file__))
+    
+    normalize = torchvision.transforms.Normalize(mean=[0.5], std=[0.5])
+    transform_train = torchvision.transforms.Compose([torchvision.transforms.Resize(32), torchvision.transforms.ToTensor(), normalize])
+    transform_test = torchvision.transforms.Compose([torchvision.transforms.Resize(32),torchvision.transforms.ToTensor(), normalize])
+        
+    transform = transform_train
+    if train is False:
+        transform = transform_test
+
+    mnistTrainSet = torchvision.datasets.FashionMNIST(
+        root=path + '/data', 
+        train=train,
+        download=True, 
+        transform=transform
+    )
+
+    loader = torch.utils.data.DataLoader(
+        mnistTrainSet,
+        batch_size=bs, #256
+        shuffle=True,
+        num_workers=8)
+    
+    return loader

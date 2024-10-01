@@ -25,13 +25,13 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         self.n_channels = n_channels
         self.num_classes = num_classes
-        self.fc1 = nn.Linear(n_channels*32*32, 1024*wider_factor)
-        self.bn1 = nn.BatchNorm1d(1024*wider_factor)
+        self.fc1 = nn.Linear(n_channels*32*32, 512*wider_factor)
+        self.bn1 = nn.BatchNorm1d(512*wider_factor)
         self.relu1 = nn.ReLU()
-        self.fc2 = nn.Linear(1024*wider_factor, 512*wider_factor)
-        self.bn2 = nn.BatchNorm1d(512*wider_factor)
+        self.fc2 = nn.Linear(512*wider_factor, 256*wider_factor)
+        self.bn2 = nn.BatchNorm1d(256*wider_factor)
         self.relu2 = nn.ReLU()
-        self.fc3 = nn.Linear(512*wider_factor, 128*wider_factor)
+        self.fc3 = nn.Linear(256*wider_factor, 128*wider_factor)
         self.bn3 = nn.BatchNorm1d(128*wider_factor)
         self.relu3 = nn.ReLU()
         self.fc4 = nn.Linear(128*wider_factor, num_classes)

@@ -6,14 +6,14 @@ import copy
 
 from model.mlp import MLP, merge_channel_mlp_clustering, merge_channel_mlp_clustering_approx_repair
 from utils.utils import DI_REPAIR, NO_REPAIR, REPAIR, DF_REPAIR, eval_model, fuse_bnorms_mlp
-from utils.datasets import get_cifar10
+from utils.datasets import get_fashion_mnist
 from thop import profile
 from tqdm import tqdm
 
 
 
 def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, method, repair, di_samples_path, eval=True, measure_variance=False):
-    input = torch.torch.randn(1, 3, 32, 32).cuda()
+    input = torch.torch.randn(1, 1, 28, 28).cuda()
     origin_model.cuda()
     origin_model.eval()
 
@@ -63,17 +63,17 @@ def main():
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--width", type=int, default=1)
     parser.add_argument("--repair", type=str, default="NO_REPAIR", help="")
-    parser.add_argument("--proj_name", type=str, help="", default="Folding MLP cifar10")
+    parser.add_argument("--proj_name", type=str, help="", default="Folding MLP fashion_mnist")
     parser.add_argument("--exp_name", type=str, help="", default="WM REPAIR")
-    parser.add_argument("--di_samples_path", type=str, default="mlp3x_cifar10.pt")
+    parser.add_argument("--di_samples_path", type=str, default="mlp3x_fashion_mnist.pt")
     args = parser.parse_args()
 
     model = MLP(wider_factor=args.width)
     model.load_state_dict(torch.load(args.checkpoint, map_location="cpu"))
     model.cuda()
 
-    test_loader = get_cifar10(train=False)
-    train_loader = get_cifar10(train=True)
+    test_loader = get_fashion_mnist(train=False)
+    train_loader = get_fashion_mnist(train=True)
 
     method = merge_channel_mlp_clustering
     if args.repair == DF_REPAIR:
