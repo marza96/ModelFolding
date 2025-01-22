@@ -1,7 +1,8 @@
 
-from model.resnet import merge_channel_ResNet18_big_clustering
+from model.resnet import merge_channel_ResNet18_big_clustering, merge_channel_ResNet18_big_clustering_approx_repair
 from utils.utils import load_model, eval_model
-from utils.utils import DI_REPAIR, NO_REPAIR, REPAIR
+from utils.utils import DI_REPAIR, NO_REPAIR, REPAIR, DF_REPAIR
+from utils.utils import fuse_bnorms_arbitrary_resnet
 from utils.datasets import get_imagenet
 
 from torchvision.models import resnet18
@@ -30,7 +31,7 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, ratio, metho
     flop, param = profile(model, inputs=(input,))
 
     if eval is True:
-        if repair != NO_REPAIR:
+        if repair != NO_REPAIR and repair != DF_REPAIR:
             if repair == DI_REPAIR:
                 for module in model.modules():
                     if isinstance(module, torch.nn.BatchNorm2d):
@@ -84,6 +85,11 @@ def main():
     model = resnet18(num_classes=1000).to("cuda")
     load_model(model, args.checkpoint, override=False)
 
+    method = merge_channel_ResNet18_big_clustering
+    if args.repair == DF_REPAIR:
+        fuse_bnorms_arbitrary_resnet(model, [2,2,2,2], override=True)
+        method = merge_channel_ResNet18_big_clustering_approx_repair
+
     desc = {"experiment": args.exp_name}
     wandb.init(
         project=args.proj_name,
@@ -91,7 +97,7 @@ def main():
         name=args.exp_name
     )
     for ratio in [0.025, 0.05, 0.1, 0.12, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_ResNet18_big_clustering, args.repair, args.di_samples_path, eval=True)
+        new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, method, args.repair, args.di_samples_path, eval=True)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": 1.0 - sparsity})
 

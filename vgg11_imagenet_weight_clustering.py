@@ -1,5 +1,6 @@
-from model.vgg import merge_channel_vgg11_clustering, get_axis_to_perm
-from utils.utils import eval_model, DI_REPAIR, REPAIR, NO_REPAIR
+from model.vgg import merge_channel_vgg11_clustering, merge_channel_vgg11_clustering_approx_repair
+from utils.utils import eval_model, fuse_bnorms_vgg
+from utils.utils import DI_REPAIR, REPAIR, NO_REPAIR, DF_REPAIR
 from utils.datasets import get_imagenet
 
 import argparse
@@ -26,7 +27,7 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, m
     model.eval()
     flop, param = profile(model, inputs=(input,))
     
-    if repair != NO_REPAIR:
+    if repair != NO_REPAIR and repair != DF_REPAIR:
         if repair == DI_REPAIR:
             for module in model.modules():
                 if isinstance(module, torch.nn.BatchNorm2d):
@@ -82,20 +83,21 @@ def main():
     test_loader = get_imagenet(args.dataset_root, train=False, bs=64)
     train_loader = get_imagenet(args.dataset_root, train=True, bs=64)
 
-    proj_name = args.proj_name
+    method = merge_channel_vgg11_clustering
+    if args.repair == DF_REPAIR:
+        fuse_bnorms_vgg(model)
+        method = merge_channel_vgg11_clustering_approx_repair
 
     desc = {"experiment": args.exp_name}
     wandb.init(
-        project=proj_name,
+        project=args.proj_name,
         config=desc,
         name=args.exp_name,
         reinit=True
     )
 
     for ratio in [0.025, 0.05, 0.1, 0.12, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]:
-        acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, merge_channel_vgg11_clustering, args.repair, args.di_samples_path)
-        
-        print("ACC", acc)
+        acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, method, args.repair, args.di_samples_path)
         wandb.log({"test acc": acc})
         wandb.log({"sparsity": sparsity})
 
