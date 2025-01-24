@@ -7,7 +7,7 @@
 Graz University of Technology, Austria  \
 Complexity Science Hub Vienna, Austria \
 ETH Zurich, Switzerland \
-_[GitHub](https://github.com/marza96/ModelFolding)_ | _[arXiv](https://openreview.net/forum?id=W2Wkp9MQsF)_ | _[BibTeX](#citation)_
+[_[GitHub](https://github.com/marza96/ModelFolding)_] | [_[arXiv](https://openreview.net/forum?id=W2Wkp9MQsF)_] | [_[BibTeX](#citation)_]
 
 \*: Equal Contribution.
 
@@ -28,11 +28,11 @@ cd ModelFolding
 ### Approximate REPAIR experiments
 To run an experiment involving approximate (data-free) REPAIR type the following:
 ```bash
-python <experiment_name>_approx_repair.py --checkpoint <path_to_weights> --proj_name <wandb project name> --exp_name <wandb experiment name>
+python <experiment_name>.py --checkpoint <path_to_weights> --proj_name <wandb project name> --exp_name <wandb experiment name> --repair "DF_REPAIR"
 ```
 For example:
 ```bash
-python resnet18_cifar10_weight_clustering_approx_repair.py --checkpoint ./resnet18_cifar10.pt --proj_name foo --exp_name bar
+python resnet18_cifar10_weight_clustering_approx_repair.py --checkpoint ./resnet18_cifar10.pt --proj_name foo --exp_name bar --repair "DF_REPAIR"
 ```
 ### REPAIR experiments 
 To run an experiment involving REPAIR type the following:
@@ -68,11 +68,11 @@ python resnet18_cifar10_weight_clustering_approx_repair.py --checkpoint ./resnet
 If this work was helpful for you, please cite:
 ```
 @inproceedings{
-anonymous2025forget,
-title={Forget the Data and Fine-Tuning! Just Fold the Network to Compress},
-author={Anonymous},
-booktitle={The Thirteenth International Conference on Learning Representations},
-year={2025},
-url={https://openreview.net/forum?id=W2Wkp9MQsF}
+    anonymous2025forget,
+    title={Forget the Data and Fine-Tuning! Just Fold the Network to Compress},
+    author={Anonymous},
+    booktitle={The Thirteenth International Conference on Learning Representations},
+    year={2025},
+    url={https://openreview.net/forum?id=W2Wkp9MQsF}
 }
 ```
