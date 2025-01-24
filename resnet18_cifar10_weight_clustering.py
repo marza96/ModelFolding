@@ -1,5 +1,5 @@
 from model.resnet import ResNet18, merge_channel_ResNet18_clustering, merge_channel_ResNet18_clustering_approx_repair
-from utils.utils import eval_model, load_model, fuse_bnorms_arbitrary_resnet, AvgLayerStatisticsHook
+from utils.utils import eval_model, load_model, fuse_bnorms_resnet
 from utils.utils import DI_REPAIR, NO_REPAIR, REPAIR, DF_REPAIR
 from utils.datasets import get_cifar10
 from thop import profile
@@ -65,7 +65,15 @@ def main():
     args = parser.parse_args()
 
     model = ResNet18()
-    load_model(model, args.checkpoint)
+    load_model(
+        model, 
+        args.checkpoint, 
+        mapping={
+            "downsample": "shortcut",
+            "fc": "linear"
+        }
+    )
+    model.cuda()
     model.cuda()
 
     test_loader = get_cifar10(train=False)
@@ -73,7 +81,7 @@ def main():
 
     method = merge_channel_ResNet18_clustering
     if args.repair == DF_REPAIR:
-        fuse_bnorms_arbitrary_resnet(model, [2,2,2,2], override=False)
+        fuse_bnorms_resnet(model, [2,2,2,2], override=True)
         method = merge_channel_ResNet18_clustering_approx_repair
 
     desc = {"experiment": args.exp_name}

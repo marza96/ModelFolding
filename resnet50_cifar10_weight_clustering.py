@@ -1,5 +1,5 @@
 from model.resnet import ResNet50, ResNet50Wider, merge_channel_ResNet50_clustering_wider, merge_channel_ResNet50_clustering, merge_channel_ResNet50_clustering_approx_repair_wider
-from utils.utils import load_model, eval_model, fuse_bnorms_arbitrary_resnet
+from utils.utils import load_model, eval_model, fuse_bnorms_resnet
 from utils.utils import REPAIR, DI_REPAIR, NO_REPAIR, DF_REPAIR
 from utils.datasets import get_cifar10
 from thop import profile
@@ -45,16 +45,13 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, m
                 
             model.eval()
 
-    if eval is True:
-        acc, loss = eval_model(model, test_loader)
-        print(f"model after adapt: acc:{acc * 100:.2f}%, avg loss:{loss:.4f}")
+    acc, loss = eval_model(model, test_loader)
+    print(f"model after adapt: acc:{acc * 100:.2f}%, avg loss:{loss:.4f}")
 
-        print(
-            f"flop:{flop}/{origin_flop}, {flop / origin_flop * 100:.2f}%; param:{param}/{origin_param}, {param / origin_param * 100:.2f} %")
-    
-        return model, acc, param / origin_param
+    print(
+        f"flop:{flop}/{origin_flop}, {flop / origin_flop * 100:.2f}%; param:{param}/{origin_param}, {param / origin_param * 100:.2f} %")
 
-    return model
+    return model, acc, param / origin_param
 
 
 def main():
@@ -68,7 +65,7 @@ def main():
     args = parser.parse_args()
     
     model = ResNet50Wider(num_classes=10, width_factor=args.width)
-    load_model(model, args.checkpoint, override=False)
+    load_model(model, args.checkpoint)
     model.cuda()
 
     test_loader = get_cifar10(train=False, bs=128)
@@ -76,7 +73,7 @@ def main():
 
     method = merge_channel_ResNet50_clustering_wider
     if args.repair == DF_REPAIR:
-        fuse_bnorms_arbitrary_resnet(model, [3, 4, 6, 3], override=True)
+        fuse_bnorms_resnet(model, [3, 4, 6, 3], override=False)
         method = merge_channel_ResNet50_clustering_approx_repair_wider
 
     proj_name = args.proj_name
@@ -96,6 +93,9 @@ def main():
         accs.append(acc)
         sps.append(sparsity)
 
+    print("accs ", accs)
+    print("sps", sps)
+    
 
 if __name__ == "__main__":
   main()
