@@ -111,18 +111,17 @@ def main():
         fuse_bnorms_mlp(model)
         method = merge_channel_mlp_clustering_approx_repair
 
-    # desc = {"experiment": args.exp_name}
-    # wandb.init(
-    #     project=args.proj_name,
-    #     config=desc,
-    #     name=args.exp_name
-    # )
+    desc = {"experiment": args.exp_name}
+    wandb.init(
+        project=args.proj_name,
+        config=desc,
+        name=args.exp_name
+    )
 
     for ratio in [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
         new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, method, args.repair, args.di_samples_path)
-        # wandb.log({"test acc": acc})
-        # wandb.log({"sparsity": 1.0 - sparsity})
-        print("acc", acc, "sp", sparsity)
+        wandb.log({"test acc": acc})
+        wandb.log({"sparsity": 1.0 - sparsity})
 
 
 if __name__ == "__main__":
