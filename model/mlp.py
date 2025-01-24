@@ -107,6 +107,18 @@ def merge_channel_mlp_clustering(origin_model, model_param, max_ratio=1., thresh
     return origin_model
 
 
+def merge_channel_mlp_clustering_activations(train_loader, origin_model, model_param, max_ratio=1.):
+    max_ratio = 1.0 - max_ratio
+    axes_to_perm = get_axis_to_perm_mlp()
+    perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
+    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold=0.1)
+
+    for p in param.keys():
+        get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
+    
+    return origin_model
+
+
 def merge_channel_mlp_clustering_approx_repair(origin_model, model_param, max_ratio=1., threshold=0.1, hooks=None):
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_mlp(approx_repair=True)

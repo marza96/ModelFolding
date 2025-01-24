@@ -5,11 +5,42 @@ import copy
 
 
 from model.mlp import MLP, merge_channel_mlp_clustering, merge_channel_mlp_clustering_approx_repair
-from utils.utils import DI_REPAIR, NO_REPAIR, REPAIR, DF_REPAIR, eval_model, fuse_bnorms_mlp
+from utils.utils import DI_REPAIR, NO_REPAIR, REPAIR, DF_REPAIR, eval_model
 from utils.datasets import get_cifar10
 from thop import profile
 from tqdm import tqdm
 
+
+def fuse_bnorms_mlp(model):
+    alpha = torch.diag(model.bn1.weight.data.clone().detach())
+    beta = model.bn1.bias.data.clone().detach()
+    rm = model.bn1.running_mean.data.clone().detach()
+    rv = torch.sqrt(model.bn1.running_var.data.clone().detach())
+    rv = torch.diag(1.0 / rv)
+    model.fc1.weight.data = alpha @ rv @ model.fc1.weight.data.clone().detach()
+    model.fc1.bias.data = alpha @ rv @ ( model.fc1.bias.data.clone().detach()  - rm) + beta
+    model.bn1.running_var.data = torch.ones_like(model.bn1.weight.data)
+    model.bn1.running_mean.data = torch.zeros_like(model.bn1.bias.data)
+
+    alpha = torch.diag(model.bn2.weight.data.clone().detach())
+    beta = model.bn2.bias.data.clone().detach()
+    rm = model.bn2.running_mean.data.clone().detach()
+    rv = torch.sqrt(model.bn2.running_var.data.clone().detach())
+    rv = torch.diag(1.0 / rv)
+    model.fc2.weight.data = alpha @ rv @ model.fc2.weight.data.clone().detach()
+    model.fc2.bias.data = alpha @ rv @ ( model.fc2.bias.data.clone().detach()  - rm) + beta
+    model.bn2.running_var.data = torch.ones_like(model.bn2.weight.data)
+    model.bn2.running_mean.data = torch.zeros_like(model.bn2.bias.data)
+
+    alpha = torch.diag(model.bn3.weight.data.clone().detach())
+    beta = model.bn3.bias.data.clone().detach()
+    rm = model.bn3.running_mean.data.clone().detach()
+    rv = torch.sqrt(model.bn3.running_var.data.clone().detach())
+    rv = torch.diag(1.0 / rv)
+    model.fc3.weight.data = alpha @ rv @ model.fc3.weight.data.clone().detach()
+    model.fc3.bias.data = alpha @ rv @ ( model.fc3.bias.data.clone().detach()  - rm) + beta
+    model.bn3.running_var.data = torch.ones_like(model.bn3.weight.data)
+    model.bn3.running_mean.data = torch.zeros_like(model.bn3.bias.data)
 
 
 def test_merge(origin_model, checkpoint, dataloader, train_loader, max_ratio, method, repair, di_samples_path, eval=True, measure_variance=False):
@@ -80,17 +111,18 @@ def main():
         fuse_bnorms_mlp(model)
         method = merge_channel_mlp_clustering_approx_repair
 
-    desc = {"experiment": args.exp_name}
-    wandb.init(
-        project=args.proj_name,
-        config=desc,
-        name=args.exp_name
-    )
+    # desc = {"experiment": args.exp_name}
+    # wandb.init(
+    #     project=args.proj_name,
+    #     config=desc,
+    #     name=args.exp_name
+    # )
 
     for ratio in [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95]: #, 0.65, 0.75, 0.85, 0.95]:
         new_model, acc, sparsity = test_merge(copy.deepcopy(model), copy.deepcopy(model).state_dict(), test_loader, train_loader, ratio, method, args.repair, args.di_samples_path)
-        wandb.log({"test acc": acc})
-        wandb.log({"sparsity": 1.0 - sparsity})
+        # wandb.log({"test acc": acc})
+        # wandb.log({"sparsity": 1.0 - sparsity})
+        print("acc", acc, "sp", sparsity)
 
 
 if __name__ == "__main__":
