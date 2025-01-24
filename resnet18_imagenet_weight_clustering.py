@@ -39,12 +39,10 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, ratio, metho
 
             data = torch.load(di_samples_path, map_location="cpu")
             model.train()
-            # lo = 0
-            # for i in range(data.shape[0] // di_bs):
-            #     model(data[lo * di_bs:(lo + 1) * di_bs, :, :, :].cuda())
-            #     lo += 1
-            model(data[:128, :, :, :].cuda())
-            model(data[128:, :, :, :].cuda())
+            lo = 0
+            for i in range(data.shape[0] // di_bs):
+                model(data[lo * di_bs:(lo + 1) * di_bs, :, :, :].cuda())
+                lo += 1
                 
             model.eval()
 

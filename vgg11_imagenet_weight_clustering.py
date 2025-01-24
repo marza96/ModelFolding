@@ -16,7 +16,7 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, method, repair, di_samples_path):
+def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, method, repair, di_samples_path, di_bs=128, repair_batch=4):
     input = torch.torch.randn(1, 3, 32, 32).cuda()
     origin_model.cuda()
     origin_model.eval()
@@ -36,8 +36,10 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, m
 
             data = torch.load(di_samples_path, map_location="cpu")
             model.train()
-            model(data[:128, :, :, :].cuda())
-            model(data[128:, :, :, :].cuda())
+            lo = 0
+            for i in range(data.shape[0] // di_bs):
+                model(data[lo * di_bs:(lo + 1) * di_bs, :, :, :].cuda())
+                lo += 1
             model.eval()
 
         elif repair == REPAIR:
@@ -51,7 +53,7 @@ def test_merge(origin_model, checkpoint, test_loader, train_loader, max_ratio, m
             for x, _ in tqdm(train_loader):
                 model(x.to("cuda"))
                 idx += 1
-                if idx == 4:
+                if idx == repair_batch:
                     break
                 
             model.eval()
