@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.weight_clustering import axes2perm_to_perm2axes, self_merge_weight_clustering, self_merge_weight_merging
+from utils.weight_clustering import axes2perm_to_perm2axes, compress_weight_clustering, align_weight_clustering
 from typing import Any, Callable, List, Optional, Type, Union
 
 from functools import reduce
@@ -456,7 +456,7 @@ def merge_channel_ResNet50_clustering(origin_model, model_param, max_ratio=1., t
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet50()
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -469,7 +469,7 @@ def merge_channel_ResNet50_clustering_wider(origin_model, model_param, max_ratio
     axes_to_perm = get_axis_to_perm_ResNet50(override=False)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
    
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -481,7 +481,7 @@ def merge_channel_ResNet50_clustering_approx_repair(origin_model, model_param, m
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet50(approx_repair=True)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True, merge_layer=merge_layer)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True, merge_layer=merge_layer)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -493,7 +493,7 @@ def merge_channel_ResNet50_clustering_approx_repair_wider(origin_model, model_pa
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet50(approx_repair=True, override=False)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True, merge_layer=merge_layer)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True, merge_layer=merge_layer)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -505,7 +505,7 @@ def merge_channel_ResNet18_clustering(origin_model, model_param, max_ratio=1., t
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet18()
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -517,7 +517,7 @@ def merge_channel_ResNet18_clustering_approx_repair(origin_model, model_param, m
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet18(approx_repair=True)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True, merge_layer=merge_layer)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True, merge_layer=merge_layer)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -529,7 +529,7 @@ def merge_channel_ResNet18_big_clustering(origin_model, model_param, max_ratio=1
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet18(override=False)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, merge_layer=merge_layer)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -541,7 +541,7 @@ def merge_channel_ResNet50_big_clustering(origin_model, model_param, max_ratio=1
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet50(override=False)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -553,7 +553,7 @@ def merge_channel_ResNet18_big_clustering_approx_repair(origin_model, model_para
     max_ratio = 1.0 - max_ratio
     axes_to_perm = get_axis_to_perm_ResNet18(override=False, approx_repair=True)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=hooks, approx_repair=True)
 
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -561,10 +561,10 @@ def merge_channel_ResNet18_big_clustering_approx_repair(origin_model, model_para
     return origin_model
 
 
-def fuse_channel_resnet18_clustering(origin_model_a, origin_model_b, model_param_a, model_param_b):
+def fuse_channel_resnet18_clustering(origin_model_a, origin_model_b, model_param_a, model_param_b, regularizer=0.001):
     axes_to_perm = get_axis_to_perm_ResNet18(override=True)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_merging(perm_to_axes, model_param_a, model_param_b, hooks=None)
+    param, perm_size = align_weight_clustering(perm_to_axes, axes_to_perm, model_param_a, model_param_b, regularizer=regularizer)
     
     res_model = copy.deepcopy(origin_model_a)
     for p in param.keys():

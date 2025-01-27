@@ -1,7 +1,7 @@
 import copy
 import torch.nn as nn
 
-from utils.weight_clustering import axes2perm_to_perm2axes, self_merge_weight_clustering, self_merge_weight_merging
+from utils.weight_clustering import axes2perm_to_perm2axes, compress_weight_clustering, align_weight_clustering
 from functools import reduce
 
 
@@ -68,7 +68,7 @@ def merge_channel_vgg11_clustering(origin_model, model_param, max_ratio=0.5, thr
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
     
     custom_merger    = MergeVGG11ConvMlp("classifier.0")
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=None, custom_merger=custom_merger)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=None, custom_merger=custom_merger)
     
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -82,7 +82,7 @@ def merge_channel_vgg11_clustering_approx_repair(origin_model, model_param, max_
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
 
     custom_merger    = MergeVGG11ConvMlp("classifier.0")
-    param, perm_size = self_merge_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=None, approx_repair=True, custom_merger=custom_merger)
+    param, perm_size = compress_weight_clustering(perm_to_axes, model_param, max_ratio, threshold, hooks=None, approx_repair=True, custom_merger=custom_merger)
     
     for p in param.keys():
         get_module_by_name(origin_model, p).data = param[p].data.clone().detach()
@@ -93,7 +93,7 @@ def merge_channel_vgg11_clustering_approx_repair(origin_model, model_param, max_
 def fuse_channel_vgg11_clustering(origin_model_a, origin_model_b, model_param_a, model_param_b):
     axes_to_perm = get_axis_to_perm(origin_model_a)
     perm_to_axes = axes2perm_to_perm2axes(axes_to_perm)
-    param, perm_size = self_merge_weight_merging(perm_to_axes, model_param_a, model_param_b, hooks=None)
+    param, perm_size = align_weight_clustering(perm_to_axes, axes_to_perm, model_param_a, model_param_b)
     
     res_model = copy.deepcopy(origin_model_a)
     for p in param.keys():
