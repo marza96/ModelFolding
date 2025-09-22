@@ -67,12 +67,11 @@ python resnet18_cifar10_weight_clustering_approx_repair.py --checkpoint ./resnet
 ## Citation
 If this work was helpful for you, please cite:
 ```
-@inproceedings{
-    anonymous2025forget,
-    title={Forget the Data and Fine-Tuning! Just Fold the Network to Compress},
-    author={Anonymous},
-    booktitle={The Thirteenth International Conference on Learning Representations},
-    year={2025},
-    url={https://openreview.net/forum?id=W2Wkp9MQsF}
+@inproceedings{wang2025forget,
+  title     = {Forget the Data and Fine-tuning!\\Just Fold the Network to Compress},
+  author    = {Dong Wang and Haris \v{S}iki\'{c} and Lothar Thiele and Olga Saukh},
+  booktitle = {Proceedings of the International Conference on Learning Representations (ICLR)},
+  year      = {2025},
+  url       = {https://openreview.net/forum?id=W2Wkp9MQsF} 
 }
 ```
